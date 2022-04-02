@@ -20,7 +20,7 @@ PLATFORMS = [
 
 
 class HomeAssistantSmartIfData(NamedTuple):
-    """Elgato data stored in the Home Assistant data object."""
+    """SmartIf data stored in the Home Assistant data object."""
 
     coordinator: DataUpdateCoordinator[dict[str, Any]]
     client: SmartIf
