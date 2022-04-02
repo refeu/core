@@ -1,0 +1,10 @@
+{
+  "domain": "smartif",
+  "name": "SmartIf",
+  "config_flow": true,
+  "documentation": "https://www.example.com",
+  "dependencies": [],
+  "codeowners": ["@refeu"],
+  "requirements": ["pydantic==1.9.0"],
+  "iot_class": "local_polling"
+}
