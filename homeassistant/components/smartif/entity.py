@@ -1,12 +1,11 @@
 """Base entity for the SmartIf integration."""
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN
 from .models import SmartIfEntityInfo
@@ -18,7 +17,7 @@ TState = TypeVar("TState", bound=BaseModel)
 class SmartIfEntity(Generic[TState]):
     """Defines a SmartIf entity."""
 
-    coordinator: DataUpdateCoordinator
+    coordinator: Any
     _attr_device_info: DeviceInfo | None
     _attr_name: str | None
     _attr_unique_id: str | None = None

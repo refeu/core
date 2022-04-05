@@ -85,3 +85,32 @@ class SmartIfBinarySensorState(BaseModel):
     """
 
     is_on: bool = Field(..., alias="isOn")
+
+
+# Climates
+class SmartIfClimateEntityInfo(SmartIfEntityInfo):
+    """Object holding a SmartIf Climate information.
+
+    This object holds information about a SmartIf Climate.
+
+    Attributes:
+        supports_state: Supports state.
+    """
+
+    supports_state: str = Field(..., alias="supportsState")
+
+
+class SmartIfClimateState(BaseModel):
+    """Object holding a SmartIf Climate state.
+
+    This object holds information about a SmartIf Climate state.
+
+    Attributes:
+        target_temperature: The temperature currently set to be reached.
+        hvac_mode: The current operation (e.g. heat, cool, idle).
+        fan_mode: Returns the current fan mode.
+    """
+
+    target_temperature: float = Field(..., alias="targetTemperature")
+    hvac_mode: str = Field(..., alias="hvacMode")
+    fan_mode: str = Field(..., alias="fanMode")
