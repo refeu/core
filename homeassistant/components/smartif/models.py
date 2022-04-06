@@ -1,8 +1,6 @@
 """Asynchronous Python client for SmartIf."""
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel
 from pydantic.fields import Field
 
@@ -45,7 +43,7 @@ class SmartIfLightState(BaseModel):
     """
 
     is_on: bool = Field(..., alias="isOn")
-    brightness: Any = Field(None)
+    brightness: int | None = Field(None)
 
 
 # AlarmControlPanels
@@ -114,3 +112,38 @@ class SmartIfClimateState(BaseModel):
     target_temperature: float = Field(..., alias="targetTemperature")
     hvac_mode: str = Field(..., alias="hvacMode")
     fan_mode: str = Field(..., alias="fanMode")
+
+
+# Covers
+class SmartIfCoverEntityInfo(SmartIfEntityInfo):
+    """Object holding a SmartIf Cover information.
+
+    This object holds information about a SmartIf Cover.
+
+    Attributes:
+        device_class: Describes the type/class of the cover.
+        supports_set_position: The cover supports moving to a specific position between opened and closed.
+        supports_stop: The cover supports stopping the current action (open, close, set position).
+    """
+
+    device_class: str = Field(..., alias="deviceClass")
+    supports_set_position: bool = Field(..., alias="supportsSetPosition")
+    supports_stop: bool = Field(..., alias="supportsStop")
+
+
+class SmartIfCoverState(BaseModel):
+    """Object holding a SmartIf Cover state.
+
+    This object holds information about a SmartIf Cover state.
+
+    Attributes:
+        current_cover_position: The current position of cover where 0 means closed and 100 is fully open.
+        is_opening: If the cover is opening or not.
+        is_closing: If the cover is closing or not.
+        is_closed: If the cover is closed or not.
+    """
+
+    current_cover_position: int | None = Field(..., alias="currentCoverPosition")
+    is_opening: bool | None = Field(..., alias="isOpening")
+    is_closing: bool | None = Field(..., alias="isClosing")
+    is_closed: bool = Field(..., alias="isClosed")
