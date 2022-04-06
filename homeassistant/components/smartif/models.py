@@ -143,7 +143,7 @@ class SmartIfCoverState(BaseModel):
         is_closed: If the cover is closed or not.
     """
 
-    current_cover_position: int | None = Field(..., alias="currentCoverPosition")
-    is_opening: bool | None = Field(..., alias="isOpening")
-    is_closing: bool | None = Field(..., alias="isClosing")
+    current_cover_position: int | None = Field(None, alias="currentCoverPosition")
+    is_opening: bool | None = Field(None, alias="isOpening")
+    is_closing: bool | None = Field(None, alias="isClosing")
     is_closed: bool = Field(..., alias="isClosed")
