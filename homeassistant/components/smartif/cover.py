@@ -66,9 +66,10 @@ class SmartIfCover(SmartIfEntity[SmartIfCoverState], CoordinatorEntity, CoverEnt
             cover_entity_info.device_class, None
         )
 
-        self._attr_supported_features = (
-            CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE
-        )
+        self._attr_supported_features = CoverEntityFeature.OPEN
+
+        if cover_entity_info.supports_close:
+            self._attr_supported_features |= CoverEntityFeature.CLOSE
 
         if cover_entity_info.supports_set_position:
             self._attr_supported_features |= CoverEntityFeature.SET_POSITION

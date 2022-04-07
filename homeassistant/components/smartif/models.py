@@ -1,6 +1,8 @@
 """Asynchronous Python client for SmartIf."""
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 from pydantic.fields import Field
 
@@ -43,7 +45,7 @@ class SmartIfLightState(BaseModel):
     """
 
     is_on: bool = Field(..., alias="isOn")
-    brightness: int | None = Field(None)
+    brightness: Any = Field(None)
 
 
 # AlarmControlPanels
@@ -124,11 +126,13 @@ class SmartIfCoverEntityInfo(SmartIfEntityInfo):
         device_class: Describes the type/class of the cover.
         supports_set_position: The cover supports moving to a specific position between opened and closed.
         supports_stop: The cover supports stopping the current action (open, close, set position).
+        supports_close: The cover supports being closed.
     """
 
     device_class: str = Field(..., alias="deviceClass")
     supports_set_position: bool = Field(..., alias="supportsSetPosition")
     supports_stop: bool = Field(..., alias="supportsStop")
+    supports_close: bool = Field(..., alias="supportsClose")
 
 
 class SmartIfCoverState(BaseModel):
@@ -143,7 +147,20 @@ class SmartIfCoverState(BaseModel):
         is_closed: If the cover is closed or not.
     """
 
-    current_cover_position: int | None = Field(None, alias="currentCoverPosition")
-    is_opening: bool | None = Field(None, alias="isOpening")
-    is_closing: bool | None = Field(None, alias="isClosing")
+    current_cover_position: Any = Field(None, alias="currentCoverPosition")
+    is_opening: Any = Field(None, alias="isOpening")
+    is_closing: Any = Field(None, alias="isClosing")
     is_closed: bool = Field(..., alias="isClosed")
+
+
+# Sirens
+class SmartIfSirenState(BaseModel):
+    """Object holding a SmartIf Siren state.
+
+    This object holds information about a SmartIf Siren state.
+
+    Attributes:
+        is_on: Whether the device is on or off.
+    """
+
+    is_on: bool = Field(..., alias="isOn")

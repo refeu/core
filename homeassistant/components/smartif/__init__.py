@@ -18,6 +18,7 @@ PLATFORMS = [
     Platform.CAMERA,
     Platform.CLIMATE,
     Platform.COVER,
+    Platform.SIREN,
 ]
 
 
