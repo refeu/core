@@ -164,3 +164,28 @@ class SmartIfSirenState(BaseModel):
     """
 
     is_on: bool = Field(..., alias="isOn")
+
+
+# Switches
+class SmartIfSwitchEntityInfo(SmartIfEntityInfo):
+    """Object holding a SmartIf Switch information.
+
+    This object holds information about a SmartIf Cover.
+
+    Attributes:
+        device_class: Return the class of this entity.
+    """
+
+    device_class: str = Field(..., alias="deviceClass")
+
+
+class SmartIfSwitchState(BaseModel):
+    """Object holding a SmartIf Switch state.
+
+    This object holds information about a SmartIf Switch state.
+
+    Attributes:
+        is_on: Whether the device is on or off.
+    """
+
+    is_on: bool = Field(..., alias="isOn")
