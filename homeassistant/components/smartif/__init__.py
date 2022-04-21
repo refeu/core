@@ -2,6 +2,8 @@
 
 from typing import Any, NamedTuple
 
+import unidecode
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -60,8 +62,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await smartif_services.call(all_services[name])
 
     for service_name in service_names:
-        hass.services.async_register(DOMAIN, service_name, handle_service)
-        all_services[service_name.lower()] = service_name
+        name_to_register: str = unidecode.unidecode(
+            service_name.lower().replace(" ", "_")
+        )
+        hass.services.async_register(DOMAIN, name_to_register, handle_service)
+        all_services[name_to_register] = service_name
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
         coordinator=coordinator, client=smartif, all_services=all_services
@@ -79,7 +84,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Cleanup
         data: HomeAssistantSmartIfData = hass.data[DOMAIN][entry.entry_id]
 
-        for service_name in data.all_services.values():
+        for service_name in data.all_services.keys():
             hass.services.async_remove(DOMAIN, service_name)
 
         del hass.data[DOMAIN][entry.entry_id]
