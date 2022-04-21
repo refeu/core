@@ -4,12 +4,13 @@ from typing import Any, NamedTuple
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN, LOGGER, SCAN_INTERVAL
 from .smartif import SmartIf
+from .smartif_services import SmartIfServices
 
 PLATFORMS = [
     Platform.LIGHT,
@@ -28,6 +29,7 @@ class HomeAssistantSmartIfData(NamedTuple):
 
     coordinator: DataUpdateCoordinator[dict[str, Any]]
     client: SmartIf
+    all_services: dict[str, str]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -48,9 +50,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         update_method=update,
     )
     await coordinator.async_config_entry_first_refresh()
+    smartif_services: SmartIfServices = SmartIfServices(smartif)
+    service_names: list[str] = await smartif_services.all()
+    all_services: dict[str, str] = {}
+
+    async def handle_service(call: ServiceCall) -> None:
+        """Handle the service call."""
+        name = call.service
+        await smartif_services.call(all_services[name])
+
+    for service_name in service_names:
+        hass.services.async_register(DOMAIN, service_name, handle_service)
+        all_services[service_name.lower()] = service_name
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
-        coordinator=coordinator, client=smartif
+        coordinator=coordinator, client=smartif, all_services=all_services
     )
+
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
     return True
 
@@ -61,6 +77,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         # Cleanup
+        data: HomeAssistantSmartIfData = hass.data[DOMAIN][entry.entry_id]
+
+        for service_name in data.all_services.values():
+            hass.services.async_remove(DOMAIN, service_name)
+
         del hass.data[DOMAIN][entry.entry_id]
 
         if not hass.data[DOMAIN]:
