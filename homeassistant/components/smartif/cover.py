@@ -5,7 +5,10 @@ from homeassistant.components.cover import (
     ATTR_POSITION,
     CoverDeviceClass,
     CoverEntity,
-    CoverEntityFeature,
+    SUPPORT_OPEN,
+    SUPPORT_CLOSE,
+    SUPPORT_SET_POSITION,
+    SUPPORT_STOP,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -66,16 +69,16 @@ class SmartIfCover(SmartIfEntity[SmartIfCoverState], CoordinatorEntity, CoverEnt
             cover_entity_info.device_class, None
         )
 
-        self._attr_supported_features = CoverEntityFeature.OPEN
+        self._attr_supported_features = SUPPORT_OPEN
 
         if cover_entity_info.supports_close:
-            self._attr_supported_features |= CoverEntityFeature.CLOSE
+            self._attr_supported_features |= SUPPORT_CLOSE
 
         if cover_entity_info.supports_set_position:
-            self._attr_supported_features |= CoverEntityFeature.SET_POSITION
+            self._attr_supported_features |= SUPPORT_SET_POSITION
 
         if cover_entity_info.supports_stop:
-            self._attr_supported_features |= CoverEntityFeature.STOP
+            self._attr_supported_features |= SUPPORT_STOP
 
         self.covers = covers
 

@@ -14,7 +14,8 @@ from homeassistant.components.climate.const import (
     HVAC_MODE_COOL,
     HVAC_MODE_HEAT,
     HVAC_MODE_OFF,
-    ClimateEntityFeature,
+    SUPPORT_TARGET_TEMPERATURE,
+    SUPPORT_FAN_MODE,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, PRECISION_WHOLE, TEMP_CELSIUS
@@ -77,7 +78,7 @@ class SmartIfClimate(
         self._attr_hvac_modes = [HVAC_MODE_OFF, HVAC_MODE_HEAT, HVAC_MODE_COOL]
         self._attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH]
         self._attr_supported_features = (
-            ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
+            SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE
         )
 
         if not climate_entity_info.supports_state:
