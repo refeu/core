@@ -24,13 +24,14 @@ async def async_setup_entry(
 class AugustWakeLockButton(AugustEntityMixin, ButtonEntity):
     """Representation of an August lock wake button."""
 
+    _attr_translation_key = "wake"
+
     def __init__(self, data: AugustData, device: Lock) -> None:
         """Initialize the lock wake button."""
         super().__init__(data, device)
-        self._attr_name = f"{device.device_name} Wake"
         self._attr_unique_id = f"{self._device_id}_wake"
 
-    async def async_press(self, **kwargs):
+    async def async_press(self) -> None:
         """Wake the device."""
         await self._data.async_status_async(self._device_id, self._hyper_bridge)
 

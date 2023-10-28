@@ -12,12 +12,9 @@ from homeassistant.components.light import (
     ATTR_EFFECT,
     ATTR_HS_COLOR,
     ATTR_TRANSITION,
-    SUPPORT_BRIGHTNESS,
-    SUPPORT_COLOR,
-    SUPPORT_COLOR_TEMP,
-    SUPPORT_EFFECT,
-    SUPPORT_TRANSITION,
+    ColorMode,
     LightEntity,
+    LightEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -47,11 +44,17 @@ async def async_setup_entry(
 class NanoleafLight(NanoleafEntity, LightEntity):
     """Representation of a Nanoleaf Light."""
 
-    def __init__(self, nanoleaf: Nanoleaf, coordinator: DataUpdateCoordinator) -> None:
+    _attr_supported_color_modes = {ColorMode.COLOR_TEMP, ColorMode.HS}
+    _attr_supported_features = LightEntityFeature.EFFECT | LightEntityFeature.TRANSITION
+    _attr_name = None
+    _attr_icon = "mdi:triangle-outline"
+
+    def __init__(
+        self, nanoleaf: Nanoleaf, coordinator: DataUpdateCoordinator[None]
+    ) -> None:
         """Initialize the Nanoleaf light."""
         super().__init__(nanoleaf, coordinator)
         self._attr_unique_id = nanoleaf.serial_no
-        self._attr_name = nanoleaf.name
         self._attr_min_mireds = math.ceil(1000000 / nanoleaf.color_temperature_max)
         self._attr_max_mireds = kelvin_to_mired(nanoleaf.color_temperature_min)
 
@@ -82,11 +85,6 @@ class NanoleafLight(NanoleafEntity, LightEntity):
         return self._nanoleaf.effects_list
 
     @property
-    def icon(self) -> str:
-        """Return the icon to use in the frontend, if any."""
-        return "mdi:triangle-outline"
-
-    @property
     def is_on(self) -> bool:
         """Return true if light is on."""
         return self._nanoleaf.is_on
@@ -97,15 +95,14 @@ class NanoleafLight(NanoleafEntity, LightEntity):
         return self._nanoleaf.hue, self._nanoleaf.saturation
 
     @property
-    def supported_features(self) -> int:
-        """Flag supported features."""
-        return (
-            SUPPORT_BRIGHTNESS
-            | SUPPORT_COLOR_TEMP
-            | SUPPORT_EFFECT
-            | SUPPORT_COLOR
-            | SUPPORT_TRANSITION
-        )
+    def color_mode(self) -> ColorMode | None:
+        """Return the color mode of the light."""
+        # According to API docs, color mode is "ct", "effect" or "hs"
+        # https://forum.nanoleaf.me/docs/openapi#_4qgqrz96f44d
+        if self._nanoleaf.color_mode == "ct":
+            return ColorMode.COLOR_TEMP
+        # Home Assistant does not have an "effect" color mode, just report hs
+        return ColorMode.HS
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Instruct the light to turn on."""

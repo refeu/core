@@ -6,7 +6,7 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.components.derivative.const import DOMAIN
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import RESULT_TYPE_CREATE_ENTRY, RESULT_TYPE_FORM
+from homeassistant.data_entry_flow import FlowResultType
 
 from tests.common import MockConfigEntry
 
@@ -19,7 +19,7 @@ async def test_config_flow(hass: HomeAssistant, platform) -> None:
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
-    assert result["type"] == RESULT_TYPE_FORM
+    assert result["type"] == FlowResultType.FORM
     assert result["errors"] is None
 
     with patch(
@@ -33,13 +33,12 @@ async def test_config_flow(hass: HomeAssistant, platform) -> None:
                 "round": 1,
                 "source": input_sensor_entity_id,
                 "time_window": {"seconds": 0},
-                "unit_prefix": "none",
                 "unit_time": "min",
             },
         )
         await hass.async_block_till_done()
 
-    assert result["type"] == RESULT_TYPE_CREATE_ENTRY
+    assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == "My derivative"
     assert result["data"] == {}
     assert result["options"] == {
@@ -47,7 +46,6 @@ async def test_config_flow(hass: HomeAssistant, platform) -> None:
         "round": 1.0,
         "source": "sensor.input",
         "time_window": {"seconds": 0.0},
-        "unit_prefix": "none",
         "unit_time": "min",
     }
     assert len(mock_setup_entry.mock_calls) == 1
@@ -59,7 +57,6 @@ async def test_config_flow(hass: HomeAssistant, platform) -> None:
         "round": 1.0,
         "source": "sensor.input",
         "time_window": {"seconds": 0.0},
-        "unit_prefix": "none",
         "unit_time": "min",
     }
     assert config_entry.title == "My derivative"
@@ -67,7 +64,7 @@ async def test_config_flow(hass: HomeAssistant, platform) -> None:
 
 def get_suggested(schema, key):
     """Get suggested value for key in voluptuous schema."""
-    for k in schema.keys():
+    for k in schema:
         if k == key:
             if k.description is None or "suggested_value" not in k.description:
                 return None
@@ -98,7 +95,7 @@ async def test_options(hass: HomeAssistant, platform) -> None:
     await hass.async_block_till_done()
 
     result = await hass.config_entries.options.async_init(config_entry.entry_id)
-    assert result["type"] == RESULT_TYPE_FORM
+    assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "init"
     schema = result["data_schema"].schema
     assert get_suggested(schema, "round") == 1.0
@@ -111,17 +108,15 @@ async def test_options(hass: HomeAssistant, platform) -> None:
         user_input={
             "round": 2.0,
             "time_window": {"seconds": 10.0},
-            "unit_prefix": "none",
             "unit_time": "h",
         },
     )
-    assert result["type"] == RESULT_TYPE_CREATE_ENTRY
+    assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"] == {
         "name": "My derivative",
         "round": 2.0,
         "source": "sensor.input",
         "time_window": {"seconds": 10.0},
-        "unit_prefix": "none",
         "unit_time": "h",
     }
     assert config_entry.data == {}
@@ -130,7 +125,6 @@ async def test_options(hass: HomeAssistant, platform) -> None:
         "round": 2.0,
         "source": "sensor.input",
         "time_window": {"seconds": 10.0},
-        "unit_prefix": "none",
         "unit_time": "h",
     }
     assert config_entry.title == "My derivative"

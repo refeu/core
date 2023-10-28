@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import collections
 import logging
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -12,6 +11,7 @@ import zigpy.group
 from zigpy.types.named import EUI64
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import async_entries_for_device
 
 from .helpers import LogMixin
@@ -30,9 +30,12 @@ class GroupMember(NamedTuple):
     endpoint_id: int
 
 
-GroupEntityReference = collections.namedtuple(
-    "GroupEntityReference", "name original_name entity_id"
-)
+class GroupEntityReference(NamedTuple):
+    """Reference to a group entity."""
+
+    name: str | None
+    original_name: str | None
+    entity_id: int
 
 
 class ZHAGroupMember(LogMixin):
@@ -63,7 +66,7 @@ class ZHAGroupMember(LogMixin):
 
     @property
     def device(self) -> ZHADevice:
-        """Return the zha device for this group member."""
+        """Return the ZHA device for this group member."""
         return self._zha_device
 
     @property
@@ -76,22 +79,32 @@ class ZHAGroupMember(LogMixin):
         return member_info
 
     @property
-    def associated_entities(self) -> list[GroupEntityReference]:
+    def associated_entities(self) -> list[dict[str, Any]]:
         """Return the list of entities that were derived from this endpoint."""
-        ha_entity_registry = self.device.gateway.ha_entity_registry
+        entity_registry = er.async_get(self._zha_device.hass)
         zha_device_registry = self.device.gateway.device_registry
-        return [
-            GroupEntityReference(
-                ha_entity_registry.async_get(entity_ref.reference_id).name,
-                ha_entity_registry.async_get(entity_ref.reference_id).original_name,
-                entity_ref.reference_id,
-            )._asdict()
-            for entity_ref in zha_device_registry.get(self.device.ieee)
-            if list(entity_ref.cluster_channels.values())[
-                0
-            ].cluster.endpoint.endpoint_id
-            == self.endpoint_id
-        ]
+
+        entity_info = []
+
+        for entity_ref in zha_device_registry.get(self.device.ieee):
+            entity = entity_registry.async_get(entity_ref.reference_id)
+            handler = list(entity_ref.cluster_handlers.values())[0]
+
+            if (
+                entity is None
+                or handler.cluster.endpoint.endpoint_id != self.endpoint_id
+            ):
+                continue
+
+            entity_info.append(
+                GroupEntityReference(
+                    name=entity.name,
+                    original_name=entity.original_name,
+                    entity_id=entity_ref.reference_id,
+                )._asdict()
+            )
+
+        return entity_info
 
     async def async_remove_from_group(self) -> None:
         """Remove the device endpoint from the provided zigbee group."""
@@ -101,7 +114,10 @@ class ZHAGroupMember(LogMixin):
             ].remove_from_group(self._zha_group.group_id)
         except (zigpy.exceptions.ZigbeeException, asyncio.TimeoutError) as ex:
             self.debug(
-                "Failed to remove endpoint: %s for device '%s' from group: 0x%04x ex: %s",
+                (
+                    "Failed to remove endpoint: %s for device '%s' from group: 0x%04x"
+                    " ex: %s"
+                ),
                 self._endpoint_id,
                 self._zha_device.ieee,
                 self._zha_group.group_id,
@@ -148,10 +164,8 @@ class ZHAGroup(LogMixin):
     def members(self) -> list[ZHAGroupMember]:
         """Return the ZHA devices that are members of this group."""
         return [
-            ZHAGroupMember(
-                self, self._zha_gateway.devices.get(member_ieee), endpoint_id
-            )
-            for (member_ieee, endpoint_id) in self._zigpy_group.members.keys()
+            ZHAGroupMember(self, self._zha_gateway.devices[member_ieee], endpoint_id)
+            for (member_ieee, endpoint_id) in self._zigpy_group.members
             if member_ieee in self._zha_gateway.devices
         ]
 
@@ -201,12 +215,14 @@ class ZHAGroup(LogMixin):
 
     def get_domain_entity_ids(self, domain: str) -> list[str]:
         """Return entity ids from the entity domain for this group."""
+        entity_registry = er.async_get(self.hass)
         domain_entity_ids: list[str] = []
+
         for member in self.members:
             if member.device.is_coordinator:
                 continue
             entities = async_entries_for_device(
-                self._zha_gateway.ha_entity_registry,
+                entity_registry,
                 member.device.device_id,
                 include_disabled_entities=True,
             )

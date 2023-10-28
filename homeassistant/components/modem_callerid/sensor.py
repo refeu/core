@@ -1,25 +1,20 @@
 """A sensor for incoming calls using a USB modem that supports caller ID."""
 from __future__ import annotations
 
-import logging
-
 from phone_modem import PhoneModem
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP, STATE_IDLE
 from homeassistant.core import Event, HomeAssistant, callback
-from homeassistant.helpers import entity_platform
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import CID, DATA_KEY_API, DOMAIN, ICON
 
-_LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: entity_platform.AddEntitiesCallback,
+    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the Modem Caller ID sensor."""
     api = hass.data[DOMAIN][entry.entry_id][DATA_KEY_API]
@@ -27,7 +22,6 @@ async def async_setup_entry(
         [
             ModemCalleridSensor(
                 api,
-                entry.title,
                 entry.entry_id,
             )
         ]
@@ -48,11 +42,12 @@ class ModemCalleridSensor(SensorEntity):
 
     _attr_icon = ICON
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = None
 
-    def __init__(self, api: PhoneModem, name: str, server_unique_id: str) -> None:
+    def __init__(self, api: PhoneModem, server_unique_id: str) -> None:
         """Initialize the sensor."""
         self.api = api
-        self._attr_name = name
         self._attr_unique_id = server_unique_id
         self._attr_native_value = STATE_IDLE
         self._attr_extra_state_attributes = {
@@ -60,6 +55,7 @@ class ModemCalleridSensor(SensorEntity):
             CID.CID_NUMBER: "",
             CID.CID_NAME: "",
         }
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, server_unique_id)})
 
     async def async_added_to_hass(self) -> None:
         """Call when the modem sensor is added to Home Assistant."""

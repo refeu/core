@@ -101,7 +101,7 @@ class SupervisorAddonUpdateEntity(HassioAddonEntity, UpdateEntity):
         return self.coordinator.data[DATA_KEY_ADDONS][self._addon_slug]
 
     @property
-    def auto_update(self):
+    def auto_update(self) -> bool:
         """Return true if auto-update is enabled for the add-on."""
         return self._addon_data[ATTR_AUTO_UPDATE]
 
@@ -159,7 +159,7 @@ class SupervisorAddonUpdateEntity(HassioAddonEntity, UpdateEntity):
     async def async_install(
         self,
         version: str | None = None,
-        backup: bool | None = False,
+        backup: bool = False,
         **kwargs: Any,
     ) -> None:
         """Install an update."""
@@ -167,8 +167,8 @@ class SupervisorAddonUpdateEntity(HassioAddonEntity, UpdateEntity):
             await async_update_addon(self.hass, slug=self._addon_slug, backup=backup)
         except HassioAPIError as err:
             raise HomeAssistantError(f"Error updating {self.title}: {err}") from err
-        else:
-            await self.coordinator.force_info_update_supervisor()
+
+        await self.coordinator.force_info_update_supervisor()
 
 
 class SupervisorOSUpdateEntity(HassioOSEntity, UpdateEntity):
@@ -181,17 +181,17 @@ class SupervisorOSUpdateEntity(HassioOSEntity, UpdateEntity):
 
     @property
     def latest_version(self) -> str:
-        """Return native value of entity."""
+        """Return the latest version."""
         return self.coordinator.data[DATA_KEY_OS][ATTR_VERSION_LATEST]
 
     @property
     def installed_version(self) -> str:
-        """Return native value of entity."""
+        """Return the installed version."""
         return self.coordinator.data[DATA_KEY_OS][ATTR_VERSION]
 
     @property
     def entity_picture(self) -> str | None:
-        """Return the iconof the entity."""
+        """Return the icon of the entity."""
         return "https://brands.home-assistant.io/homeassistant/icon.png"
 
     @property
@@ -219,19 +219,23 @@ class SupervisorOSUpdateEntity(HassioOSEntity, UpdateEntity):
 class SupervisorSupervisorUpdateEntity(HassioSupervisorEntity, UpdateEntity):
     """Update entity to handle updates for the Home Assistant Supervisor."""
 
-    _attr_auto_update = True
     _attr_supported_features = UpdateEntityFeature.INSTALL
     _attr_title = "Home Assistant Supervisor"
 
     @property
     def latest_version(self) -> str:
-        """Return native value of entity."""
+        """Return the latest version."""
         return self.coordinator.data[DATA_KEY_SUPERVISOR][ATTR_VERSION_LATEST]
 
     @property
     def installed_version(self) -> str:
-        """Return native value of entity."""
+        """Return the installed version."""
         return self.coordinator.data[DATA_KEY_SUPERVISOR][ATTR_VERSION]
+
+    @property
+    def auto_update(self) -> bool:
+        """Return true if auto-update is enabled for supervisor."""
+        return self.coordinator.data[DATA_KEY_SUPERVISOR][ATTR_AUTO_UPDATE]
 
     @property
     def release_url(self) -> str | None:
@@ -243,7 +247,7 @@ class SupervisorSupervisorUpdateEntity(HassioSupervisorEntity, UpdateEntity):
 
     @property
     def entity_picture(self) -> str | None:
-        """Return the iconof the entity."""
+        """Return the icon of the entity."""
         return "https://brands.home-assistant.io/hassio/icon.png"
 
     async def async_install(
@@ -270,17 +274,17 @@ class SupervisorCoreUpdateEntity(HassioCoreEntity, UpdateEntity):
 
     @property
     def latest_version(self) -> str:
-        """Return native value of entity."""
+        """Return the latest version."""
         return self.coordinator.data[DATA_KEY_CORE][ATTR_VERSION_LATEST]
 
     @property
     def installed_version(self) -> str:
-        """Return native value of entity."""
+        """Return the installed version."""
         return self.coordinator.data[DATA_KEY_CORE][ATTR_VERSION]
 
     @property
     def entity_picture(self) -> str | None:
-        """Return the iconof the entity."""
+        """Return the icon of the entity."""
         return "https://brands.home-assistant.io/homeassistant/icon.png"
 
     @property

@@ -40,7 +40,6 @@ class WLEDUpdateEntity(WLEDEntity, UpdateEntity):
     def __init__(self, coordinator: WLEDDataUpdateCoordinator) -> None:
         """Initialize the update entity."""
         super().__init__(coordinator=coordinator)
-        self._attr_name = f"{coordinator.data.info.name} Firmware"
         self._attr_unique_id = coordinator.data.info.mac_address
 
     @property

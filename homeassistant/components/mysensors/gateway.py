@@ -9,12 +9,11 @@ import socket
 import sys
 from typing import Any
 
-import async_timeout
 from mysensors import BaseAsyncGateway, Message, Sensor, mysensors
 import voluptuous as vol
 
-from homeassistant.components.mqtt import DOMAIN as MQTT_DOMAIN
-from homeassistant.components.mqtt.models import (
+from homeassistant.components.mqtt import (
+    DOMAIN as MQTT_DOMAIN,
     ReceiveMessage as MQTTReceiveMessage,
     ReceivePayloadType,
 )
@@ -22,6 +21,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant, callback
 import homeassistant.helpers.config_validation as cv
+from homeassistant.util.unit_system import METRIC_SYSTEM
 
 from .const import (
     CONF_BAUD_RATE,
@@ -42,6 +42,7 @@ from .const import (
 )
 from .handler import HANDLERS
 from .helpers import (
+    discover_mysensors_node,
     discover_mysensors_platform,
     on_unload,
     validate_child,
@@ -106,7 +107,7 @@ async def try_connect(
         connect_task = None
         try:
             connect_task = asyncio.create_task(gateway.start())
-            async with async_timeout.timeout(GATEWAY_READY_TIMEOUT):
+            async with asyncio.timeout(GATEWAY_READY_TIMEOUT):
                 await gateway_ready.wait()
                 return True
         except asyncio.TimeoutError:
@@ -115,7 +116,7 @@ async def try_connect(
         finally:
             if connect_task is not None and not connect_task.done():
                 connect_task.cancel()
-            asyncio.create_task(gateway.stop())
+            await gateway.stop()
     except OSError as err:
         _LOGGER.info("Try gateway connect failed with exception", exc_info=err)
         return False
@@ -196,7 +197,6 @@ async def _get_gateway(
             in_prefix=topic_in_prefix,
             out_prefix=topic_out_prefix,
             retain=retain,
-            loop=hass.loop,
             event_callback=None,
             persistence=persistence,
             persistence_file=persistence_file,
@@ -206,7 +206,6 @@ async def _get_gateway(
         gateway = mysensors.AsyncSerialGateway(
             device,
             baud=baud_rate,
-            loop=hass.loop,
             event_callback=None,
             persistence=persistence,
             persistence_file=persistence_file,
@@ -216,14 +215,13 @@ async def _get_gateway(
         gateway = mysensors.AsyncTCPGateway(
             device,
             port=tcp_port,
-            loop=hass.loop,
             event_callback=None,
             persistence=persistence,
             persistence_file=persistence_file,
             protocol_version=version,
         )
     gateway.event_callback = event_callback
-    gateway.metric = hass.config.units.is_metric
+    gateway.metric = hass.config.units is METRIC_SYSTEM
 
     if persistence:
         await gateway.start_persistence()
@@ -247,6 +245,7 @@ async def _discover_persistent_devices(
     for node_id in gateway.sensors:
         if not validate_node(gateway, node_id):
             continue
+        discover_mysensors_node(hass, entry.entry_id, node_id)
         node: Sensor = gateway.sensors[node_id]
         for child in node.children.values():  # child is of type ChildSensor
             validated = validate_child(entry.entry_id, gateway, node_id, child)
@@ -301,7 +300,7 @@ async def _gw_start(
         # Gatways connected via mqtt doesn't send gateway ready message.
         return
     try:
-        async with async_timeout.timeout(GATEWAY_READY_TIMEOUT):
+        async with asyncio.timeout(GATEWAY_READY_TIMEOUT):
             await gateway_ready.wait()
     except asyncio.TimeoutError:
         _LOGGER.warning(
@@ -331,6 +330,6 @@ def _gw_callback_factory(
         if msg_handler is None:
             return
 
-        hass.async_create_task(msg_handler(hass, gateway_id, msg))
+        msg_handler(hass, gateway_id, msg)
 
     return mysensors_callback

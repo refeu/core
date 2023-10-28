@@ -1,5 +1,5 @@
 """Tests for Samsung TV config flow."""
-import socket
+from ipaddress import ip_address
 from unittest.mock import ANY, AsyncMock, Mock, call, patch
 
 import pytest
@@ -28,13 +28,9 @@ from homeassistant.components.samsungtv.const import (
     DEFAULT_MANUFACTURER,
     DOMAIN,
     LEGACY_PORT,
-    METHOD_ENCRYPTED_WEBSOCKET,
-    METHOD_LEGACY,
-    METHOD_WEBSOCKET,
     RESULT_AUTH_MISSING,
     RESULT_CANNOT_CONNECT,
     RESULT_NOT_SUPPORTED,
-    RESULT_UNKNOWN_HOST,
     TIMEOUT_REQUEST,
     TIMEOUT_WEBSOCKET,
 )
@@ -43,6 +39,7 @@ from homeassistant.components.ssdp import (
     ATTR_UPNP_MANUFACTURER,
     ATTR_UPNP_MODEL_NAME,
     ATTR_UPNP_UDN,
+    SsdpServiceInfo,
 )
 from homeassistant.const import (
     CONF_HOST,
@@ -56,16 +53,10 @@ from homeassistant.const import (
     CONF_TOKEN,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import (
-    RESULT_TYPE_ABORT,
-    RESULT_TYPE_CREATE_ENTRY,
-    RESULT_TYPE_FORM,
-)
+from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.setup import async_setup_component
 
-from . import setup_samsungtv_entry
 from .const import (
-    MOCK_CONFIG_ENCRYPTED_WS,
     MOCK_ENTRYDATA_ENCRYPTED_WS,
     MOCK_ENTRYDATA_WS,
     MOCK_SSDP_DATA_MAIN_TV_AGENT_ST,
@@ -103,6 +94,15 @@ MOCK_SSDP_DATA = ssdp.SsdpServiceInfo(
         ATTR_UPNP_UDN: "uuid:0d1cef00-00dc-1000-9c80-4844f7b172de",
     },
 )
+MOCK_SSDP_DATA_NO_MANUFACTURER = ssdp.SsdpServiceInfo(
+    ssdp_usn="mock_usn",
+    ssdp_st="mock_st",
+    ssdp_location="https://fake_host:12345/test",
+    upnp={
+        ATTR_UPNP_FRIENDLY_NAME: "[TV] fake_name",
+        ATTR_UPNP_UDN: "uuid:0d1cef00-00dc-1000-9c80-4844f7b172de",
+    },
+)
 
 MOCK_SSDP_DATA_NOPREFIX = ssdp.SsdpServiceInfo(
     ssdp_usn="mock_usn",
@@ -131,8 +131,8 @@ MOCK_DHCP_DATA = dhcp.DhcpServiceInfo(
 )
 EXISTING_IP = "192.168.40.221"
 MOCK_ZEROCONF_DATA = zeroconf.ZeroconfServiceInfo(
-    host="fake_host",
-    addresses=["fake_host"],
+    ip_address=ip_address("127.0.0.1"),
+    ip_addresses=[ip_address("127.0.0.1")],
     hostname="mock_hostname",
     name="mock_name",
     port=1234,
@@ -209,6 +209,8 @@ DEVICEINFO_WEBSOCKET_NO_SSL = {
     "port": 8001,
     "timeout": TIMEOUT_WEBSOCKET,
 }
+
+pytestmark = pytest.mark.usefixtures("mock_setup_entry")
 
 
 @pytest.mark.usefixtures("remote", "rest_api_failing")
@@ -339,16 +341,16 @@ async def test_user_encrypted_websocket(
         )
 
     assert result4["type"] == "create_entry"
-    assert result4["title"] == "Living Room (82GXARRS)"
+    assert result4["title"] == "TV-UE48JU6470 (UE48JU6400)"
     assert result4["data"][CONF_HOST] == "fake_host"
-    assert result4["data"][CONF_NAME] == "Living Room"
+    assert result4["data"][CONF_NAME] == "TV-UE48JU6470"
     assert result4["data"][CONF_MAC] == "aa:bb:ww:ii:ff:ii"
     assert result4["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result4["data"][CONF_MODEL] == "82GXARRS"
+    assert result4["data"][CONF_MODEL] == "UE48JU6400"
     assert result4["data"][CONF_SSDP_RENDERING_CONTROL_LOCATION] is None
     assert result4["data"][CONF_TOKEN] == "037739871315caef138547b03e348b72"
     assert result4["data"][CONF_SESSION_ID] == "1"
-    assert result4["result"].unique_id == "be9554b9-c9fb-41f4-8920-22da015376a4"
+    assert result4["result"].unique_id == "223da676-497a-4e06-9507-5e27ec4f0fb3"
 
 
 @pytest.mark.usefixtures("rest_api_failing")
@@ -362,7 +364,7 @@ async def test_user_legacy_missing_auth(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}, data=MOCK_USER_DATA
         )
-        assert result["type"] == RESULT_TYPE_FORM
+        assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "pairing"
         assert result["errors"] == {"base": "auth_missing"}
 
@@ -374,7 +376,7 @@ async def test_user_legacy_missing_auth(hass: HomeAssistant) -> None:
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"], user_input={}
         )
-        assert result2["type"] == RESULT_TYPE_ABORT
+        assert result2["type"] == FlowResultType.ABORT
         assert result2["reason"] == RESULT_CANNOT_CONNECT
 
 
@@ -446,7 +448,7 @@ async def test_user_websocket_auth_retry(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}, data=MOCK_USER_DATA
         )
-    assert result["type"] == RESULT_TYPE_FORM
+    assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "pairing"
     assert result["errors"] == {"base": "auth_missing"}
     with patch(
@@ -458,7 +460,7 @@ async def test_user_websocket_auth_retry(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], user_input={}
         )
-    assert result["type"] == RESULT_TYPE_CREATE_ENTRY
+    assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == "Living Room (82GXARRS)"
     assert result["data"][CONF_HOST] == "fake_host"
     assert result["data"][CONF_NAME] == "Living Room"
@@ -525,6 +527,33 @@ async def test_ssdp(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.usefixtures("remote", "rest_api_failing")
+async def test_ssdp_no_manufacturer(hass: HomeAssistant) -> None:
+    """Test starting a flow from discovery when the manufacturer data is missing."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA_NO_MANUFACTURER,
+    )
+    assert result["type"] == "abort"
+    assert result["reason"] == "not_supported"
+
+
+@pytest.mark.parametrize(
+    "data", [MOCK_SSDP_DATA_MAIN_TV_AGENT_ST, MOCK_SSDP_DATA_RENDERING_CONTROL_ST]
+)
+@pytest.mark.usefixtures("remote", "rest_api_failing")
+async def test_ssdp_legacy_not_remote_control_receiver_udn(
+    hass: HomeAssistant, data: SsdpServiceInfo
+) -> None:
+    """Test we abort if the st is not usable for legacy discovery since it will have a different UDN."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_SSDP}, data=data
+    )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == RESULT_NOT_SUPPORTED
+
+
+@pytest.mark.usefixtures("remote", "rest_api_failing")
 async def test_ssdp_noprefix(hass: HomeAssistant) -> None:
     """Test starting a flow from discovery without prefixes."""
     # confirm to add the entry
@@ -566,7 +595,7 @@ async def test_ssdp_legacy_missing_auth(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], user_input={}
         )
-        assert result["type"] == RESULT_TYPE_FORM
+        assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "pairing"
         assert result["errors"] == {"base": "auth_missing"}
 
@@ -575,7 +604,7 @@ async def test_ssdp_legacy_missing_auth(hass: HomeAssistant) -> None:
             result["flow_id"], user_input={}
         )
 
-    assert result["type"] == RESULT_TYPE_CREATE_ENTRY
+    assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == "fake_model"
     assert result["data"][CONF_HOST] == "fake_host"
     assert result["data"][CONF_NAME] == "fake_model"
@@ -595,7 +624,7 @@ async def test_ssdp_legacy_not_supported(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_SSDP}, data=MOCK_SSDP_DATA
         )
-        assert result["type"] == RESULT_TYPE_ABORT
+        assert result["type"] == FlowResultType.ABORT
         assert result["reason"] == RESULT_NOT_SUPPORTED
 
 
@@ -698,19 +727,19 @@ async def test_ssdp_encrypted_websocket_success_populates_mac_address_and_ssdp_l
         )
 
     assert result4["type"] == "create_entry"
-    assert result4["title"] == "Living Room (82GXARRS)"
+    assert result4["title"] == "TV-UE48JU6470 (UE48JU6400)"
     assert result4["data"][CONF_HOST] == "fake_host"
-    assert result4["data"][CONF_NAME] == "Living Room"
+    assert result4["data"][CONF_NAME] == "TV-UE48JU6470"
     assert result4["data"][CONF_MAC] == "aa:bb:ww:ii:ff:ii"
     assert result4["data"][CONF_MANUFACTURER] == "Samsung fake_manufacturer"
-    assert result4["data"][CONF_MODEL] == "82GXARRS"
+    assert result4["data"][CONF_MODEL] == "UE48JU6400"
     assert (
         result4["data"][CONF_SSDP_RENDERING_CONTROL_LOCATION]
         == "https://fake_host:12345/test"
     )
     assert result4["data"][CONF_TOKEN] == "037739871315caef138547b03e348b72"
     assert result4["data"][CONF_SESSION_ID] == "1"
-    assert result4["result"].unique_id == "be9554b9-c9fb-41f4-8920-22da015376a4"
+    assert result4["result"].unique_id == "223da676-497a-4e06-9507-5e27ec4f0fb3"
 
 
 @pytest.mark.usefixtures("rest_api_non_ssl_only")
@@ -727,7 +756,7 @@ async def test_ssdp_encrypted_websocket_not_supported(
             context={"source": config_entries.SOURCE_SSDP},
             data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
         )
-        assert result["type"] == RESULT_TYPE_ABORT
+        assert result["type"] == FlowResultType.ABORT
         assert result["reason"] == RESULT_NOT_SUPPORTED
 
 
@@ -780,7 +809,6 @@ async def test_ssdp_not_successful(hass: HomeAssistant) -> None:
         "homeassistant.components.samsungtv.bridge.SamsungTVWSBridge.async_device_info",
         return_value=MOCK_DEVICE_INFO,
     ):
-
         # confirm to add the entry
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_SSDP}, data=MOCK_SSDP_DATA
@@ -809,7 +837,6 @@ async def test_ssdp_not_successful_2(hass: HomeAssistant) -> None:
         "homeassistant.components.samsungtv.bridge.SamsungTVWSBridge.async_device_info",
         return_value=MOCK_DEVICE_INFO,
     ):
-
         # confirm to add the entry
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_SSDP}, data=MOCK_SSDP_DATA
@@ -832,7 +859,6 @@ async def test_ssdp_already_in_progress(hass: HomeAssistant) -> None:
         "homeassistant.components.samsungtv.bridge.SamsungTVWSBridge.async_device_info",
         return_value=MOCK_DEVICE_INFO,
     ):
-
         # confirm to add the entry
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_SSDP}, data=MOCK_SSDP_DATA
@@ -855,7 +881,6 @@ async def test_ssdp_already_configured(hass: HomeAssistant) -> None:
         "homeassistant.components.samsungtv.bridge.SamsungTVWSBridge.async_device_info",
         return_value=MOCK_DEVICE_INFO,
     ):
-
         # entry was added
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}, data=MOCK_USER_DATA
@@ -877,131 +902,6 @@ async def test_ssdp_already_configured(hass: HomeAssistant) -> None:
         assert entry.unique_id == "123"
 
 
-@pytest.mark.usefixtures("remote")
-async def test_import_legacy(hass: HomeAssistant) -> None:
-    """Test importing from yaml with hostname."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_IMPORT},
-        data=MOCK_IMPORT_DATA,
-    )
-    await hass.async_block_till_done()
-    assert result["type"] == "create_entry"
-    assert result["title"] == "fake"
-    assert result["data"][CONF_HOST] == "fake_host"
-    assert result["data"][CONF_NAME] == "fake"
-    assert result["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result["result"].unique_id is None
-
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1
-    assert entries[0].data[CONF_METHOD] == METHOD_LEGACY
-    assert entries[0].data[CONF_PORT] == LEGACY_PORT
-
-
-@pytest.mark.usefixtures("remote", "remotews", "rest_api_failing")
-async def test_import_legacy_without_name(hass: HomeAssistant) -> None:
-    """Test importing from yaml without a name."""
-    with patch(
-        "homeassistant.components.samsungtv.bridge.SamsungTVEncryptedWSAsyncRemote.start_listening",
-        side_effect=WebSocketProtocolError("Boom"),
-    ):
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_IMPORT},
-            data=MOCK_IMPORT_DATA_WITHOUT_NAME,
-        )
-        await hass.async_block_till_done()
-    assert result["type"] == "create_entry"
-    assert result["title"] == "fake_host"
-    assert result["data"][CONF_HOST] == "fake_host"
-    assert result["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result["result"].unique_id is None
-
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1
-    assert entries[0].data[CONF_METHOD] == METHOD_LEGACY
-    assert entries[0].data[CONF_PORT] == LEGACY_PORT
-
-
-@pytest.mark.usefixtures("remotews", "rest_api")
-async def test_import_websocket(hass: HomeAssistant):
-    """Test importing from yaml with hostname."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_IMPORT},
-        data=MOCK_IMPORT_WSDATA,
-    )
-    await hass.async_block_till_done()
-    assert result["type"] == "create_entry"
-    assert result["title"] == "fake"
-    assert result["data"][CONF_METHOD] == METHOD_WEBSOCKET
-    assert result["data"][CONF_PORT] == 8002
-    assert result["data"][CONF_HOST] == "fake_host"
-    assert result["data"][CONF_NAME] == "fake"
-    assert result["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result["result"].unique_id is None
-
-
-@pytest.mark.usefixtures("remoteencws")
-async def test_import_websocket_encrypted(hass: HomeAssistant):
-    """Test importing from yaml with hostname."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_IMPORT},
-        data=MOCK_CONFIG_ENCRYPTED_WS,
-    )
-    await hass.async_block_till_done()
-
-    assert result["type"] == "create_entry"
-    assert result["title"] == "fake"
-    assert result["data"][CONF_METHOD] == METHOD_ENCRYPTED_WEBSOCKET
-    assert result["data"][CONF_PORT] == 8000
-    assert result["data"][CONF_HOST] == "fake_host"
-    assert result["data"][CONF_NAME] == "fake"
-    assert result["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result["result"].unique_id is None
-
-
-@pytest.mark.usefixtures("remotews", "rest_api")
-async def test_import_websocket_without_port(hass: HomeAssistant):
-    """Test importing from yaml with hostname by no port."""
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_IMPORT},
-        data=MOCK_IMPORT_WSDATA,
-    )
-    await hass.async_block_till_done()
-    assert result["type"] == "create_entry"
-    assert result["title"] == "fake"
-    assert result["data"][CONF_HOST] == "fake_host"
-    assert result["data"][CONF_NAME] == "fake"
-    assert result["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result["result"].unique_id is None
-
-    entries = hass.config_entries.async_entries(DOMAIN)
-    assert len(entries) == 1
-    assert entries[0].data[CONF_METHOD] == METHOD_WEBSOCKET
-    assert entries[0].data[CONF_PORT] == 8002
-
-
-@pytest.mark.usefixtures("remotews")
-async def test_import_unknown_host(hass: HomeAssistant):
-    """Test importing from yaml with hostname that does not resolve."""
-    with patch(
-        "homeassistant.components.samsungtv.config_flow.socket.gethostbyname",
-        side_effect=socket.gaierror,
-    ):
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_IMPORT},
-            data=MOCK_IMPORT_DATA,
-        )
-    await hass.async_block_till_done()
-    assert result["type"] == "abort"
-    assert result["reason"] == RESULT_UNKNOWN_HOST
-
-
 @pytest.mark.usefixtures("remotews", "rest_api_non_ssl_only", "remoteencws_failing")
 async def test_dhcp_wireless(hass: HomeAssistant) -> None:
     """Test starting a flow from dhcp."""
@@ -1020,13 +920,13 @@ async def test_dhcp_wireless(hass: HomeAssistant) -> None:
         result["flow_id"], user_input="whatever"
     )
     assert result["type"] == "create_entry"
-    assert result["title"] == "Living Room (82GXARRS)"
+    assert result["title"] == "TV-UE48JU6470 (UE48JU6400)"
     assert result["data"][CONF_HOST] == "fake_host"
-    assert result["data"][CONF_NAME] == "Living Room"
+    assert result["data"][CONF_NAME] == "TV-UE48JU6470"
     assert result["data"][CONF_MAC] == "aa:bb:ww:ii:ff:ii"
     assert result["data"][CONF_MANUFACTURER] == "Samsung"
-    assert result["data"][CONF_MODEL] == "82GXARRS"
-    assert result["result"].unique_id == "be9554b9-c9fb-41f4-8920-22da015376a4"
+    assert result["data"][CONF_MODEL] == "UE48JU6400"
+    assert result["result"].unique_id == "223da676-497a-4e06-9507-5e27ec4f0fb3"
 
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
@@ -1076,7 +976,7 @@ async def test_zeroconf(hass: HomeAssistant) -> None:
     )
     assert result["type"] == "create_entry"
     assert result["title"] == "Living Room (82GXARRS)"
-    assert result["data"][CONF_HOST] == "fake_host"
+    assert result["data"][CONF_HOST] == "127.0.0.1"
     assert result["data"][CONF_NAME] == "Living Room"
     assert result["data"][CONF_MAC] == "aa:bb:ww:ii:ff:ii"
     assert result["data"][CONF_MANUFACTURER] == "Samsung"
@@ -1245,7 +1145,7 @@ async def test_autodetect_auth_missing(hass: HomeAssistant) -> None:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}, data=MOCK_USER_DATA
         )
-        assert result["type"] == RESULT_TYPE_FORM
+        assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "pairing"
         assert result["errors"] == {"base": "auth_missing"}
 
@@ -1260,7 +1160,7 @@ async def test_autodetect_auth_missing(hass: HomeAssistant) -> None:
             {},
         )
         await hass.async_block_till_done()
-        assert result2["type"] == RESULT_TYPE_ABORT
+        assert result2["type"] == FlowResultType.ABORT
         assert result2["reason"] == RESULT_CANNOT_CONNECT
 
 
@@ -1349,26 +1249,19 @@ async def test_update_old_entry(hass: HomeAssistant) -> None:
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_missing_mac_unique_id_added_from_dhcp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac and unique id added."""
     entry = MockConfigEntry(domain=DOMAIN, data=MOCK_OLD_ENTRY, unique_id=None)
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_DHCP},
-            data=MOCK_DHCP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_DHCP},
+        data=MOCK_DHCP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1378,54 +1271,68 @@ async def test_update_missing_mac_unique_id_added_from_dhcp(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_missing_mac_unique_id_added_from_zeroconf(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac and unique id added."""
-    entry = MockConfigEntry(domain=DOMAIN, data=MOCK_OLD_ENTRY, unique_id=None)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={**MOCK_OLD_ENTRY, "host": "127.0.0.1"}, unique_id=None
+    )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_ZEROCONF},
-            data=MOCK_ZEROCONF_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=MOCK_ZEROCONF_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
+
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_MAC] == "aa:bb:zz:ee:rr:oo"
     assert entry.unique_id == "be9554b9-c9fb-41f4-8920-22da015376a4"
 
 
+@pytest.mark.usefixtures("remote", "rest_api_failing")
+async def test_update_missing_model_added_from_ssdp(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
+    """Test missing model added via ssdp on legacy models."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_OLD_ENTRY,
+        unique_id=None,
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "already_configured"
+    assert entry.data[CONF_MODEL] == "fake_model"
+
+
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_missing_mac_unique_id_ssdp_location_added_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac, ssdp_location, and unique id added via ssdp."""
     entry = MockConfigEntry(domain=DOMAIN, data=MOCK_OLD_ENTRY, unique_id=None)
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1435,9 +1342,34 @@ async def test_update_missing_mac_unique_id_ssdp_location_added_from_ssdp(
     assert entry.unique_id == "be9554b9-c9fb-41f4-8920-22da015376a4"
 
 
+@pytest.mark.usefixtures(
+    "remote", "remotews", "remoteencws_failing", "rest_api_failing"
+)
+async def test_update_zeroconf_discovery_preserved_unique_id(
+    hass: HomeAssistant,
+) -> None:
+    """Test zeroconf discovery preserves unique id."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**MOCK_OLD_ENTRY, CONF_MAC: "aa:bb:zz:ee:rr:oo"},
+        unique_id="original",
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=MOCK_ZEROCONF_DATA,
+    )
+    await hass.async_block_till_done()
+    assert result["type"] == "abort"
+    assert result["reason"] == "not_supported"
+    assert entry.data[CONF_MAC] == "aa:bb:zz:ee:rr:oo"
+    assert entry.unique_id == "original"
+
+
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_missing_mac_unique_id_added_ssdp_location_updated_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac and unique id with outdated ssdp_location with the wrong st added via ssdp."""
     entry = MockConfigEntry(
@@ -1449,21 +1381,14 @@ async def test_update_missing_mac_unique_id_added_ssdp_location_updated_from_ssd
         unique_id=None,
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1477,7 +1402,7 @@ async def test_update_missing_mac_unique_id_added_ssdp_location_updated_from_ssd
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_missing_mac_unique_id_added_ssdp_location_rendering_st_updated_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac and unique id with outdated ssdp_location with the correct st added via ssdp."""
     entry = MockConfigEntry(
@@ -1489,21 +1414,14 @@ async def test_update_missing_mac_unique_id_added_ssdp_location_rendering_st_upd
         unique_id=None,
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1518,7 +1436,7 @@ async def test_update_missing_mac_unique_id_added_ssdp_location_rendering_st_upd
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_missing_mac_unique_id_added_ssdp_location_main_tv_agent_st_updated_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac and unique id with outdated ssdp_location with the correct st added via ssdp."""
     entry = MockConfigEntry(
@@ -1531,21 +1449,14 @@ async def test_update_missing_mac_unique_id_added_ssdp_location_main_tv_agent_st
         unique_id=None,
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA_MAIN_TV_AGENT_ST,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA_MAIN_TV_AGENT_ST,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1564,7 +1475,7 @@ async def test_update_missing_mac_unique_id_added_ssdp_location_main_tv_agent_st
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_ssdp_location_rendering_st_updated_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test with outdated ssdp_location with the correct st added via ssdp."""
     entry = MockConfigEntry(
@@ -1573,21 +1484,14 @@ async def test_update_ssdp_location_rendering_st_updated_from_ssdp(
         unique_id="be9554b9-c9fb-41f4-8920-22da015376a4",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1602,7 +1506,7 @@ async def test_update_ssdp_location_rendering_st_updated_from_ssdp(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_main_tv_ssdp_location_rendering_st_updated_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test with outdated ssdp_location with the correct st added via ssdp."""
     entry = MockConfigEntry(
@@ -1611,21 +1515,14 @@ async def test_update_main_tv_ssdp_location_rendering_st_updated_from_ssdp(
         unique_id="be9554b9-c9fb-41f4-8920-22da015376a4",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA_MAIN_TV_AGENT_ST,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA_MAIN_TV_AGENT_ST,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1640,30 +1537,24 @@ async def test_update_main_tv_ssdp_location_rendering_st_updated_from_ssdp(
 
 @pytest.mark.usefixtures("remotews", "rest_api")
 async def test_update_missing_mac_added_unique_id_preserved_from_zeroconf(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac and unique id added."""
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data=MOCK_OLD_ENTRY,
+        data={**MOCK_OLD_ENTRY, "host": "127.0.0.1"},
         unique_id="0d1cef00-00dc-1000-9c80-4844f7b172de",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_ZEROCONF},
-            data=MOCK_ZEROCONF_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_ZEROCONF},
+        data=MOCK_ZEROCONF_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
+
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_MAC] == "aa:bb:zz:ee:rr:oo"
@@ -1671,7 +1562,9 @@ async def test_update_missing_mac_added_unique_id_preserved_from_zeroconf(
 
 
 @pytest.mark.usefixtures("remote")
-async def test_update_legacy_missing_mac_from_dhcp(hass: HomeAssistant) -> None:
+async def test_update_legacy_missing_mac_from_dhcp(
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
+) -> None:
     """Test missing mac added."""
     entry = MockConfigEntry(
         domain=DOMAIN,
@@ -1679,23 +1572,17 @@ async def test_update_legacy_missing_mac_from_dhcp(hass: HomeAssistant) -> None:
         unique_id="0d1cef00-00dc-1000-9c80-4844f7b172de",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_DHCP},
-            data=dhcp.DhcpServiceInfo(
-                ip=EXISTING_IP, macaddress="aa:bb:cc:dd:ee:ff", hostname="fake_hostname"
-            ),
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_DHCP},
+        data=dhcp.DhcpServiceInfo(
+            ip=EXISTING_IP, macaddress="aa:bb:cc:dd:ee:ff", hostname="fake_hostname"
+        ),
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
+
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
     assert entry.data[CONF_MAC] == "aa:bb:cc:dd:ee:ff"
@@ -1704,7 +1591,7 @@ async def test_update_legacy_missing_mac_from_dhcp(hass: HomeAssistant) -> None:
 
 @pytest.mark.usefixtures("remote")
 async def test_update_legacy_missing_mac_from_dhcp_no_unique_id(
-    hass: HomeAssistant, rest_api: Mock
+    hass: HomeAssistant, rest_api: Mock, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing mac added when there is no unique id."""
     rest_api.rest_device_info.side_effect = HttpApiError
@@ -1719,13 +1606,7 @@ async def test_update_legacy_missing_mac_from_dhcp_no_unique_id(
     ), patch(
         "homeassistant.components.samsungtv.bridge.SamsungTVEncryptedWSAsyncRemote.start_listening",
         side_effect=WebSocketProtocolError("Boom"),
-    ), patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
+    ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": config_entries.SOURCE_DHCP},
@@ -1734,8 +1615,8 @@ async def test_update_legacy_missing_mac_from_dhcp_no_unique_id(
             ),
         )
         await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
         assert len(mock_setup_entry.mock_calls) == 1
+
     assert result["type"] == "abort"
     assert result["reason"] == "not_supported"
     assert entry.data[CONF_MAC] == "aa:bb:cc:dd:ee:ff"
@@ -1744,7 +1625,7 @@ async def test_update_legacy_missing_mac_from_dhcp_no_unique_id(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_ssdp_location_unique_id_added_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing ssdp_location, and unique id added via ssdp."""
     entry = MockConfigEntry(
@@ -1753,21 +1634,14 @@ async def test_update_ssdp_location_unique_id_added_from_ssdp(
         unique_id=None,
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1779,7 +1653,7 @@ async def test_update_ssdp_location_unique_id_added_from_ssdp(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_ssdp_location_unique_id_added_from_ssdp_with_rendering_control_st(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test missing ssdp_location, and unique id added via ssdp with rendering control st."""
     entry = MockConfigEntry(
@@ -1788,21 +1662,14 @@ async def test_update_ssdp_location_unique_id_added_from_ssdp_with_rendering_con
         unique_id=None,
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA_RENDERING_CONTROL_ST,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -1930,15 +1797,17 @@ async def test_form_reauth_encrypted(hass: HomeAssistant) -> None:
     del encrypted_entry_data[CONF_TOKEN]
     del encrypted_entry_data[CONF_SESSION_ID]
 
-    entry = await setup_samsungtv_entry(hass, encrypted_entry_data)
-    assert entry.state == config_entries.ConfigEntryState.SETUP_ERROR
-    flows_in_progress = [
-        flow
-        for flow in hass.config_entries.flow.async_progress()
-        if flow["context"]["source"] == "reauth"
-    ]
-    assert len(flows_in_progress) == 1
-    result = flows_in_progress[0]
+    entry = MockConfigEntry(domain=DOMAIN, data=encrypted_entry_data)
+    entry.add_to_hass(hass)
+    assert entry.state == config_entries.ConfigEntryState.NOT_LOADED
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"entry_id": entry.entry_id, "source": config_entries.SOURCE_REAUTH},
+        data=entry.data,
+    )
+    assert result["type"] == "form"
+    assert result["errors"] == {}
 
     with patch(
         "homeassistant.components.samsungtv.config_flow.SamsungTVEncryptedWSAsyncAuthenticator",
@@ -1997,7 +1866,7 @@ async def test_form_reauth_encrypted(hass: HomeAssistant) -> None:
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_incorrect_udn_matching_upnp_udn_unique_id_added_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test updating the wrong udn from ssdp via upnp udn match."""
     entry = MockConfigEntry(
@@ -2006,21 +1875,14 @@ async def test_update_incorrect_udn_matching_upnp_udn_unique_id_added_from_ssdp(
         unique_id="0d1cef00-00dc-1000-9c80-4844f7b172de",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -2030,7 +1892,7 @@ async def test_update_incorrect_udn_matching_upnp_udn_unique_id_added_from_ssdp(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_incorrect_udn_matching_mac_unique_id_added_from_ssdp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test updating the wrong udn from ssdp via mac match."""
     entry = MockConfigEntry(
@@ -2039,21 +1901,14 @@ async def test_update_incorrect_udn_matching_mac_unique_id_added_from_ssdp(
         unique_id=None,
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_SSDP},
-            data=MOCK_SSDP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_SSDP},
+        data=MOCK_SSDP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -2063,7 +1918,7 @@ async def test_update_incorrect_udn_matching_mac_unique_id_added_from_ssdp(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_update_incorrect_udn_matching_mac_from_dhcp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test that DHCP updates the wrong udn from ssdp via mac match."""
     entry = MockConfigEntry(
@@ -2073,21 +1928,14 @@ async def test_update_incorrect_udn_matching_mac_from_dhcp(
         unique_id="0d1cef00-00dc-1000-9c80-4844f7b172de",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_DHCP},
-            data=MOCK_DHCP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 1
-        assert len(mock_setup_entry.mock_calls) == 1
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_DHCP},
+        data=MOCK_DHCP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 1
 
     assert result["type"] == "abort"
     assert result["reason"] == "already_configured"
@@ -2097,7 +1945,7 @@ async def test_update_incorrect_udn_matching_mac_from_dhcp(
 
 @pytest.mark.usefixtures("remotews", "rest_api", "remoteencws_failing")
 async def test_no_update_incorrect_udn_not_matching_mac_from_dhcp(
-    hass: HomeAssistant,
+    hass: HomeAssistant, mock_setup_entry: AsyncMock
 ) -> None:
     """Test that DHCP does not update the wrong udn from ssdp via host match."""
     entry = MockConfigEntry(
@@ -2107,21 +1955,14 @@ async def test_no_update_incorrect_udn_not_matching_mac_from_dhcp(
         unique_id="0d1cef00-00dc-1000-9c80-4844f7b172de",
     )
     entry.add_to_hass(hass)
-    with patch(
-        "homeassistant.components.samsungtv.async_setup",
-        return_value=True,
-    ) as mock_setup, patch(
-        "homeassistant.components.samsungtv.async_setup_entry",
-        return_value=True,
-    ) as mock_setup_entry:
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_DHCP},
-            data=MOCK_DHCP_DATA,
-        )
-        await hass.async_block_till_done()
-        assert len(mock_setup.mock_calls) == 0
-        assert len(mock_setup_entry.mock_calls) == 0
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_DHCP},
+        data=MOCK_DHCP_DATA,
+    )
+    await hass.async_block_till_done()
+    assert len(mock_setup_entry.mock_calls) == 0
 
     assert result["type"] == "form"
     assert result["step_id"] == "confirm"
