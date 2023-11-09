@@ -9,7 +9,6 @@ from typing import Any, cast
 from aiohttp import ClientResponse
 from aiohttp.client import ClientError, ClientResponseError, ClientSession
 from aiohttp.hdrs import METH_GET
-import async_timeout
 from yarl import URL
 
 from .exceptions import SmartIfConnectionError
@@ -21,8 +20,8 @@ class SmartIf:
 
     host: str
     port: int = 42443
-    request_timeout: int = 8
     session: ClientSession | None = None
+    request_timeout: int = 8
 
     _close_session: bool = False
 
@@ -45,7 +44,7 @@ class SmartIf:
         response: ClientResponse
 
         try:
-            async with async_timeout.timeout(self.request_timeout):
+            async with asyncio.timeout(self.request_timeout):
                 response = await self.session.request(
                     method, url, json=data, headers=headers
                 )
@@ -68,13 +67,16 @@ class SmartIf:
 
         A generic method for sending/handling HTTP requests done against
         the SmartIf API.
+
         Args:
                 uri: Request URI, for example, 'info'
                 method: HTTP Method to use.
                 data: Dictionary of data to send to the SmartIf.
+
         Returns:
                 A Python dictionary (JSON decoded) with the response from
                 the SmartIf API.
+
         Raises:
                 SmartIfConnectionError: An error occurred while communicating with
                         the SmartIf.
@@ -96,12 +98,15 @@ class SmartIf:
 
         A generic method for sending/handling HTTP binary requests done against
         the SmartIf API.
+
         Args:
                 uri: Request URI, for example, 'info'
                 method: HTTP Method to use.
                 data: Dictionary of data to send to the SmartIf.
+
         Returns:
                 The bytes with the response from the SmartIf API.
+
         Raises:
                 SmartIfConnectionError: An error occurred while communicating with
                         the SmartIf.

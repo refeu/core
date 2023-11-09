@@ -2,14 +2,7 @@
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
-    DEVICE_CLASS_DOOR,
-    DEVICE_CLASS_GARAGE_DOOR,
-    DEVICE_CLASS_GAS,
-    DEVICE_CLASS_MOISTURE,
-    DEVICE_CLASS_MOTION,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_SMOKE,
-    DEVICE_CLASS_WINDOW,
+    BinarySensorDeviceClass,
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -68,14 +61,14 @@ class SmartIfBinarySensor(
         CoordinatorEntity.__init__(self, coordinator)
 
         device_class_translations = {
-            "motion": DEVICE_CLASS_MOTION,
-            "garage_door": DEVICE_CLASS_GARAGE_DOOR,
-            "window": DEVICE_CLASS_WINDOW,
-            "door": DEVICE_CLASS_DOOR,
-            "moisture": DEVICE_CLASS_MOISTURE,
-            "smoke": DEVICE_CLASS_SMOKE,
-            "power": DEVICE_CLASS_POWER,
-            "gas": DEVICE_CLASS_GAS,
+            "motion": BinarySensorDeviceClass.MOTION,
+            "garage_door": BinarySensorDeviceClass.GARAGE_DOOR,
+            "window": BinarySensorDeviceClass.WINDOW,
+            "door": BinarySensorDeviceClass.DOOR,
+            "moisture": BinarySensorDeviceClass.MOISTURE,
+            "smoke": BinarySensorDeviceClass.SMOKE,
+            "power": BinarySensorDeviceClass.POWER,
+            "gas": BinarySensorDeviceClass.GAS,
         }
 
         self._attr_device_class = device_class_translations.get(

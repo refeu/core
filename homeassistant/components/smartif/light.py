@@ -3,12 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.light import (
-    ATTR_BRIGHTNESS,
-    COLOR_MODE_BRIGHTNESS,
-    COLOR_MODE_ONOFF,
-    LightEntity,
-)
+from homeassistant.components.light import ATTR_BRIGHTNESS, ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -57,11 +52,11 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], CoordinatorEntity, LightEnt
         CoordinatorEntity.__init__(self, coordinator)
 
         if light_entity_info.supports_brightness:
-            self._attr_color_mode = COLOR_MODE_BRIGHTNESS
-            self._attr_supported_color_modes = {COLOR_MODE_BRIGHTNESS}
+            self._attr_color_mode = ColorMode.BRIGHTNESS
+            self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
         else:
-            self._attr_color_mode = COLOR_MODE_ONOFF
-            self._attr_supported_color_modes = {COLOR_MODE_ONOFF}
+            self._attr_color_mode = ColorMode.ONOFF
+            self._attr_supported_color_modes = {ColorMode.ONOFF}
 
         self.lights = lights
 
@@ -90,7 +85,7 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], CoordinatorEntity, LightEnt
             brightness: int | None = (
                 kwargs[ATTR_BRIGHTNESS]
                 if self.supported_color_modes
-                and COLOR_MODE_BRIGHTNESS in self.supported_color_modes
+                and ColorMode.BRIGHTNESS in self.supported_color_modes
                 and ATTR_BRIGHTNESS in kwargs
                 else None
             )

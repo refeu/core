@@ -5,7 +5,8 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
 from .models import SmartIfEntityInfo
@@ -14,7 +15,7 @@ from .smartif import SmartIf
 TState = TypeVar("TState", bound=BaseModel)
 
 
-class SmartIfEntity(Generic[TState]):
+class SmartIfEntity(Entity, Generic[TState]):
     """Defines a SmartIf entity."""
 
     coordinator: Any

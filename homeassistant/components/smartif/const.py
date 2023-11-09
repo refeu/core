@@ -8,3 +8,4 @@ from typing import Final
 DOMAIN: Final = "smartif"
 LOGGER = logging.getLogger(__package__)
 SCAN_INTERVAL = timedelta(seconds=10)
+UPDATE_EVENT: Final = DOMAIN + "_entity_update"
