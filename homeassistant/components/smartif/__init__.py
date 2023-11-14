@@ -43,7 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         SmartIf, entry.data[CONF_HOST], entry.data[CONF_PORT], session
     )
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
-        SmartIfState(), smartif
+        SmartIfState(await smartif.devices_state()), smartif
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_hass_events(hass, entry)
