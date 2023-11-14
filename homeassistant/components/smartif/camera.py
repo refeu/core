@@ -43,7 +43,7 @@ class SmartIfCamera(SmartIfEntity[BaseModel], Camera):
         camera_entity_info: SmartIfEntityInfo,
     ) -> None:
         """Initialize SmartIf Camera."""
-        super().__init__(BaseModel, client, camera_entity_info)
+        super().__init__(BaseModel, client, camera_entity_info, None)
         Camera.__init__(self)
         self._attr_is_recording = False
         self._attr_is_streaming = False

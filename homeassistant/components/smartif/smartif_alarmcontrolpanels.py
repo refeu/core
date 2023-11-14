@@ -22,21 +22,21 @@ class SmartIfAlarmControlPanels:
             list[SmartIfEntityInfo], await self.smart_if.request("AlarmControlPanels")
         )
 
-    async def alarm_disarm(self, _id: str, code: str = None) -> None:
+    async def alarm_disarm(self, _id: str, code: str | None = None) -> None:
         """Send disarm command."""
         param: str = f"?code={code}" if code is not None else ""
         await self.smart_if.request(
             f"AlarmControlPanels/{_id}/AlarmDisarm{param}", method=METH_POST
         )
 
-    async def alarm_arm_home(self, _id: str, code: str = None) -> None:
+    async def alarm_arm_home(self, _id: str, code: str | None = None) -> None:
         """Send arm home command."""
         param: str = f"?code={code}" if code is not None else ""
         await self.smart_if.request(
             f"AlarmControlPanels/{_id}/AlarmArmHome{param}", method=METH_POST
         )
 
-    async def alarm_arm_away(self, _id: str, code: str = None) -> None:
+    async def alarm_arm_away(self, _id: str, code: str | None = None) -> None:
         """Send arm away command."""
         param: str = f"?code={code}" if code is not None else ""
         await self.smart_if.request(

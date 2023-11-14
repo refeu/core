@@ -1,7 +1,6 @@
 """Support for SmartIf."""
 
 from dataclasses import dataclass, field
-from typing import Any
 
 import unidecode
 
@@ -9,11 +8,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, LOGGER, SCAN_INTERVAL, UPDATE_EVENT
+from .const import DOMAIN, UPDATE_EVENT
 from .smartif import SmartIf
 from .smartif_services import SmartIfServices
+from .smartif_state import SmartIfState
 
 PLATFORMS = [
     Platform.LIGHT,
@@ -31,7 +30,7 @@ PLATFORMS = [
 class HomeAssistantSmartIfData:
     """SmartIf data stored in the Home Assistant data object."""
 
-    coordinator: DataUpdateCoordinator[dict[str, Any]]
+    state: SmartIfState
     client: SmartIf
     all_services: dict[str, str] = field(default_factory=dict)
     event_listener: CALLBACK_TYPE | None = None
@@ -43,21 +42,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     smartif = await hass.async_add_executor_job(
         SmartIf, entry.data[CONF_HOST], entry.data[CONF_PORT], session
     )
-
-    async def update() -> dict[str, Any]:
-        return await smartif.devices_state()
-
-    coordinator: DataUpdateCoordinator[dict[str, Any]] = DataUpdateCoordinator(
-        hass,
-        LOGGER,
-        name=f"{DOMAIN}_{entry.data[CONF_HOST]}",
-        update_interval=SCAN_INTERVAL,
-        update_method=update,
-    )
-
-    await coordinator.async_config_entry_first_refresh()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
-        coordinator, smartif
+        SmartIfState(), smartif
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_hass_events(hass, entry)
@@ -115,11 +101,7 @@ async def setup_hass_events(hass: HomeAssistant, entry: ConfigEntry) -> None:
     data: HomeAssistantSmartIfData = hass.data[DOMAIN][entry.entry_id]
 
     async def update_event(event: Event) -> None:
-        new_entity_data: dict[str, Any] = data.coordinator.data
-
         for smartif_entity_id, entity_data in event.data.items():
-            new_entity_data[smartif_entity_id] = entity_data
-
-        data.coordinator.async_set_updated_data(new_entity_data)
+            data.state.async_set_updated_data(smartif_entity_id, entity_data)
 
     data.event_listener = hass.bus.async_listen(UPDATE_EVENT, update_event)

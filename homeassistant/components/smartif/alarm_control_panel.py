@@ -2,12 +2,9 @@
 from __future__ import annotations
 
 from homeassistant.components.alarm_control_panel import (
-    FORMAT_NUMBER,
     AlarmControlPanelEntity,
-)
-from homeassistant.components.alarm_control_panel.const import (
-    SUPPORT_ALARM_ARM_AWAY,
-    SUPPORT_ALARM_ARM_HOME,
+    AlarmControlPanelEntityFeature,
+    CodeFormat,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -21,10 +18,6 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
 from . import HomeAssistantSmartIfData
 from .const import DOMAIN, LOGGER
@@ -33,6 +26,7 @@ from .exceptions import SmartIfError
 from .models import SmartIfAlarmControlPanelState, SmartIfEntityInfo
 from .smartif import SmartIf
 from .smartif_alarmcontrolpanels import SmartIfAlarmControlPanels
+from .smartif_state import SmartIfState
 
 
 async def async_setup_entry(
@@ -47,7 +41,7 @@ async def async_setup_entry(
     async_add_entities(
         (
             SmartIfAlarmControlPanel(
-                data.coordinator,
+                data.state,
                 smart_if,
                 smart_if_alarm_control_panels,
                 alarm_control_panel_entity,
@@ -60,26 +54,30 @@ async def async_setup_entry(
 
 class SmartIfAlarmControlPanel(
     SmartIfEntity[SmartIfAlarmControlPanelState],
-    CoordinatorEntity,
     AlarmControlPanelEntity,
 ):
     """Defines an SmartIf Alarm Control Panel."""
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
+        state: SmartIfState,
         client: SmartIf,
         alarm_control_panels: SmartIfAlarmControlPanels,
         alarm_control_panel_entity_info: SmartIfEntityInfo,
     ) -> None:
         """Initialize SmartIf Alarm Control Panel."""
         super().__init__(
-            SmartIfAlarmControlPanelState, client, alarm_control_panel_entity_info
+            SmartIfAlarmControlPanelState,
+            client,
+            alarm_control_panel_entity_info,
+            state,
         )
-        CoordinatorEntity.__init__(self, coordinator)
-        self._attr_code_format = FORMAT_NUMBER
+        self._attr_code_format = CodeFormat.NUMBER
         self._attr_code_arm_required = True
-        self._attr_supported_features = SUPPORT_ALARM_ARM_AWAY | SUPPORT_ALARM_ARM_HOME
+        self._attr_supported_features = (
+            AlarmControlPanelEntityFeature.ARM_AWAY
+            | AlarmControlPanelEntityFeature.ARM_HOME
+        )
         self.alarm_control_panels = alarm_control_panels
 
     @property
@@ -102,8 +100,6 @@ class SmartIfAlarmControlPanel(
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Alarm")
 
-        await self.coordinator.async_refresh()
-
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
         try:
@@ -111,13 +107,9 @@ class SmartIfAlarmControlPanel(
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Alarm")
 
-        await self.coordinator.async_refresh()
-
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
         try:
             await self.alarm_control_panels.alarm_arm_away(self.entity_info.id, code)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Alarm")
-
-        await self.coordinator.async_refresh()

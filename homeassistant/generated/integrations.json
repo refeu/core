@@ -5204,6 +5204,12 @@
       "integration_type": "virtual",
       "supported_by": "netatmo"
     },
+    "smartif": {
+      "name": "SmartIf",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "local_polling"
+    },
     "smartthings": {
       "name": "SmartThings",
       "integration_type": "hub",

@@ -7,10 +7,6 @@ from homeassistant.components.light import ATTR_BRIGHTNESS, ColorMode, LightEnti
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
 from . import HomeAssistantSmartIfData
 from .const import DOMAIN, LOGGER
@@ -19,6 +15,7 @@ from .exceptions import SmartIfError
 from .models import SmartIfLightEntityInfo, SmartIfLightState
 from .smartif import SmartIf
 from .smartif_lights import SmartIfLights
+from .smartif_state import SmartIfState
 
 
 async def async_setup_entry(
@@ -30,26 +27,25 @@ async def async_setup_entry(
     smart_if_lights: SmartIfLights = SmartIfLights(smart_if)
     async_add_entities(
         (
-            SmartIfLight(data.coordinator, smart_if, smart_if_lights, light_entity)
+            SmartIfLight(data.state, smart_if, smart_if_lights, light_entity)
             for light_entity in await smart_if_lights.all()
         ),
         True,
     )
 
 
-class SmartIfLight(SmartIfEntity[SmartIfLightState], CoordinatorEntity, LightEntity):
+class SmartIfLight(SmartIfEntity[SmartIfLightState], LightEntity):
     """Defines an SmartIf Light."""
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
+        state: SmartIfState,
         client: SmartIf,
         lights: SmartIfLights,
         light_entity_info: SmartIfLightEntityInfo,
     ) -> None:
         """Initialize SmartIf Light."""
-        super().__init__(SmartIfLightState, client, light_entity_info)
-        CoordinatorEntity.__init__(self, coordinator)
+        super().__init__(SmartIfLightState, client, light_entity_info, state)
 
         if light_entity_info.supports_brightness:
             self._attr_color_mode = ColorMode.BRIGHTNESS
@@ -77,8 +73,6 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], CoordinatorEntity, LightEnt
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Light")
 
-        await self.coordinator.async_refresh()
-
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light."""
         try:
@@ -92,5 +86,3 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], CoordinatorEntity, LightEnt
             await self.lights.turn_on(self.entity_info.id, brightness)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Light")
-
-        await self.coordinator.async_refresh()

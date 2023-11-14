@@ -8,10 +8,6 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
 from . import HomeAssistantSmartIfData
 from .const import DOMAIN
@@ -19,6 +15,7 @@ from .entity import SmartIfEntity
 from .models import SmartIfBinarySensorEntityInfo, SmartIfBinarySensorState
 from .smartif import SmartIf
 from .smartif_binarysensors import SmartIfBinarySensors
+from .smartif_state import SmartIfState
 
 
 async def async_setup_entry(
@@ -31,7 +28,7 @@ async def async_setup_entry(
     async_add_entities(
         (
             SmartIfBinarySensor(
-                data.coordinator,
+                data.state,
                 smart_if,
                 smart_if_binary_sensors,
                 binary_sensor_entity,
@@ -44,21 +41,21 @@ async def async_setup_entry(
 
 class SmartIfBinarySensor(
     SmartIfEntity[SmartIfBinarySensorState],
-    CoordinatorEntity,
     BinarySensorEntity,
 ):
     """Defines an SmartIf Binary Sensor."""
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
+        state: SmartIfState,
         client: SmartIf,
         binary_sensors: SmartIfBinarySensors,
         binary_sensor_entity_info: SmartIfBinarySensorEntityInfo,
     ) -> None:
         """Initialize SmartIf Alarm."""
-        super().__init__(SmartIfBinarySensorState, client, binary_sensor_entity_info)
-        CoordinatorEntity.__init__(self, coordinator)
+        super().__init__(
+            SmartIfBinarySensorState, client, binary_sensor_entity_info, state
+        )
 
         device_class_translations = {
             "motion": BinarySensorDeviceClass.MOTION,

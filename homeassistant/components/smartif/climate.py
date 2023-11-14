@@ -1,30 +1,22 @@
 """Support for SmartIf climates."""
 from __future__ import annotations
 
-from homeassistant.components.climate import ClimateEntity
-from homeassistant.components.climate.const import (
-    CURRENT_HVAC_COOL,
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_IDLE,
-    CURRENT_HVAC_OFF,
+from typing import Any
+
+from homeassistant.components.climate import (
     FAN_AUTO,
     FAN_HIGH,
     FAN_LOW,
     FAN_MEDIUM,
-    HVAC_MODE_COOL,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_OFF,
-    SUPPORT_TARGET_TEMPERATURE,
-    SUPPORT_FAN_MODE,
+    ClimateEntity,
+    ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_TEMPERATURE, PRECISION_WHOLE, TEMP_CELSIUS
+from homeassistant.const import ATTR_TEMPERATURE, PRECISION_WHOLE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
 from . import HomeAssistantSmartIfData
 from .const import DOMAIN, LOGGER
@@ -33,6 +25,7 @@ from .exceptions import SmartIfError
 from .models import SmartIfClimateEntityInfo, SmartIfClimateState
 from .smartif import SmartIf
 from .smartif_climates import SmartIfClimates
+from .smartif_state import SmartIfState
 
 
 async def async_setup_entry(
@@ -44,9 +37,7 @@ async def async_setup_entry(
     smart_if_climates: SmartIfClimates = SmartIfClimates(smart_if)
     async_add_entities(
         (
-            SmartIfClimate(
-                data.coordinator, smart_if, smart_if_climates, climate_entity
-            )
+            SmartIfClimate(data.state, smart_if, smart_if_climates, climate_entity)
             for climate_entity in await smart_if_climates.all()
         ),
         True,
@@ -55,30 +46,28 @@ async def async_setup_entry(
 
 class SmartIfClimate(
     SmartIfEntity[SmartIfClimateState],
-    CoordinatorEntity,
     ClimateEntity,
 ):
     """Defines an SmartIf Climate."""
 
     def __init__(
         self,
-        coordinator: DataUpdateCoordinator,
+        state: SmartIfState,
         client: SmartIf,
         climates: SmartIfClimates,
         climate_entity_info: SmartIfClimateEntityInfo,
     ) -> None:
         """Initialize SmartIf Climate."""
-        super().__init__(SmartIfClimateState, client, climate_entity_info)
-        CoordinatorEntity.__init__(self, coordinator)
-        self._attr_temperature_unit = TEMP_CELSIUS
+        super().__init__(SmartIfClimateState, client, climate_entity_info, state)
+        self._attr_temperature_unit = UnitOfTemperature.CELSIUS
         self._attr_precision = PRECISION_WHOLE
         self._attr_target_temperature_step = PRECISION_WHOLE
         self._attr_max_temp = 32
         self._attr_min_temp = 16
-        self._attr_hvac_modes = [HVAC_MODE_OFF, HVAC_MODE_HEAT, HVAC_MODE_COOL]
+        self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
         self._attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH]
         self._attr_supported_features = (
-            SUPPORT_TARGET_TEMPERATURE | SUPPORT_FAN_MODE
+            ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
         )
 
         if not climate_entity_info.supports_state:
@@ -92,35 +81,33 @@ class SmartIfClimate(
         return self.smart_if_state().target_temperature
 
     @property
-    def hvac_mode(self) -> str:
+    def hvac_mode(self) -> HVACMode | None:
         """Return hvac operation ie. heat, cool mode.
 
         Need to be one of HVAC_MODE_*.
         """
         hvac_mode_translations = {
-            "HVAC_MODE_OFF": HVAC_MODE_OFF,
-            "HVAC_MODE_COOL": HVAC_MODE_COOL,
-            "HVAC_MODE_HEAT": HVAC_MODE_HEAT,
+            "HVAC_MODE_OFF": HVACMode.OFF,
+            "HVAC_MODE_COOL": HVACMode.COOL,
+            "HVAC_MODE_HEAT": HVACMode.HEAT,
         }
 
-        return hvac_mode_translations.get(
-            self.smart_if_state().hvac_mode, HVAC_MODE_OFF
-        )
+        return hvac_mode_translations.get(self.smart_if_state().hvac_mode, HVACMode.OFF)
 
     @property
-    def hvac_action(self) -> str | None:
+    def hvac_action(self) -> HVACAction | None:
         """Return the current running hvac operation if supported.
 
         Need to be one of CURRENT_HVAC_*.
         """
         hvac_action_translations = {
-            "HVAC_MODE_OFF": CURRENT_HVAC_OFF,
-            "HVAC_MODE_COOL": CURRENT_HVAC_COOL,
-            "HVAC_MODE_HEAT": CURRENT_HVAC_HEAT,
+            "HVAC_MODE_OFF": HVACAction.OFF,
+            "HVAC_MODE_COOL": HVACAction.COOLING,
+            "HVAC_MODE_HEAT": HVACAction.HEATING,
         }
 
         return hvac_action_translations.get(
-            self.smart_if_state().hvac_mode, CURRENT_HVAC_IDLE
+            self.smart_if_state().hvac_mode, HVACAction.IDLE
         )
 
     @property
@@ -138,23 +125,21 @@ class SmartIfClimate(
 
         return fan_mode_translations.get(self.smart_if_state().fan_mode, FAN_AUTO)
 
-    async def async_set_hvac_mode(self, hvac_mode: str) -> None:
+    async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
         hvac_mode_translations = {
-            HVAC_MODE_OFF: "HVAC_MODE_OFF",
-            HVAC_MODE_COOL: "HVAC_MODE_COOL",
-            HVAC_MODE_HEAT: "HVAC_MODE_HEAT",
+            HVACMode.OFF: "HVAC_MODE_OFF",
+            HVACMode.COOL: "HVAC_MODE_COOL",
+            HVACMode.HEAT: "HVAC_MODE_HEAT",
         }
 
         try:
             await self.climates.set_hvac_mode(
                 self.entity_info.id,
-                hvac_mode_translations.get(hvac_mode, HVAC_MODE_OFF),
+                hvac_mode_translations.get(hvac_mode, HVACMode.OFF),
             )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")
-
-        await self.coordinator.async_refresh()
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
@@ -172,9 +157,7 @@ class SmartIfClimate(
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")
 
-        await self.coordinator.async_refresh()
-
-    async def async_set_temperature(self, **kwargs) -> None:
+    async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
@@ -183,5 +166,3 @@ class SmartIfClimate(
             await self.climates.set_temperature(self.entity_info.id, float(temperature))
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")
-
-        await self.coordinator.async_refresh()
