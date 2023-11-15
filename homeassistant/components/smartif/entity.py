@@ -48,11 +48,14 @@ class SmartIfEntity(Entity, Generic[TState]):
 
     def smart_if_state(self) -> TState:
         """Get the entity state."""
-        return (
-            self.state_type.parse_obj(self._state.data[self.entity_info.id])
-            if self._state
-            else self.state_type()
-        )
+        assert self._state
+        return self.state_type.parse_obj(self._state.data[self.entity_info.id])
+
+        # return (
+        #     self.state_type.parse_obj(self._state.data[self.entity_info.id])
+        #     if self._state
+        #     else self.state_type()
+        # )
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
