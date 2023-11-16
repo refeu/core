@@ -28,11 +28,11 @@ class SmartIf:
     async def _do_request(
         self, uri: str, *, method: str = METH_GET, data: dict | None = None
     ) -> ClientResponse:
-        url = URL.build(scheme="http", host=self.host, port=self.port, path="/").join(
-            URL(uri)
-        )
+        url: URL = URL.build(
+            scheme="http", host=self.host, port=self.port, path="/"
+        ).join(URL(uri))
 
-        headers = {
+        headers: dict[str, str] = {
             "User-Agent": "PythonSmartIf",
             "Accept": "application/json, text/plain, */*",
         }
@@ -84,7 +84,7 @@ class SmartIf:
                         API.
         """
         response: ClientResponse = await self._do_request(uri, method=method, data=data)
-        content_type = response.headers.get("Content-Type", "")
+        content_type: str = response.headers.get("Content-Type", "")
 
         if "application/json" not in content_type:
             return await response.text()

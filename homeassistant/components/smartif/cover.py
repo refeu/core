@@ -52,7 +52,7 @@ class SmartIfCover(SmartIfEntity[SmartIfCoverState], CoverEntity):
         """Initialize SmartIf Cover."""
         super().__init__(SmartIfCoverState, client, cover_entity_info, state)
 
-        device_class_translations = {
+        device_class_translations: dict[str, CoverDeviceClass] = {
             "DEVICE_CLASS_BLIND": CoverDeviceClass.BLIND,
             "DEVICE_CLASS_CURTAIN": CoverDeviceClass.CURTAIN,
             "DEVICE_CLASS_DOOR": CoverDeviceClass.DOOR,
@@ -75,7 +75,7 @@ class SmartIfCover(SmartIfEntity[SmartIfCoverState], CoverEntity):
         if cover_entity_info.supports_stop:
             self._attr_supported_features |= CoverEntityFeature.STOP
 
-        self.covers = covers
+        self._covers: SmartIfCovers = covers
 
     @property
     def current_cover_position(self) -> int | None:
@@ -103,22 +103,22 @@ class SmartIfCover(SmartIfEntity[SmartIfCoverState], CoverEntity):
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         try:
-            await self.covers.open_cover(self.entity_info.id)
+            await self._covers.open_cover(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Cover")
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
         try:
-            await self.covers.close_cover(self.entity_info.id)
+            await self._covers.close_cover(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Cover")
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
         try:
-            await self.covers.set_cover_position(
-                self.entity_info.id, kwargs[ATTR_POSITION]
+            await self._covers.set_cover_position(
+                self.smartif_entity_id, kwargs[ATTR_POSITION]
             )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Cover")
@@ -126,6 +126,6 @@ class SmartIfCover(SmartIfEntity[SmartIfCoverState], CoverEntity):
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
         try:
-            await self.covers.stop_cover(self.entity_info.id)
+            await self._covers.stop_cover(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Cover")

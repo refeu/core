@@ -73,7 +73,7 @@ class SmartIfClimate(
         if not climate_entity_info.supports_state:
             self._attr_assumed_state = True
 
-        self.climates = climates
+        self._climates: SmartIfClimates = climates
 
     @property
     def target_temperature(self) -> float | None:
@@ -86,7 +86,7 @@ class SmartIfClimate(
 
         Need to be one of HVAC_MODE_*.
         """
-        hvac_mode_translations = {
+        hvac_mode_translations: dict[str, HVACMode] = {
             "HVAC_MODE_OFF": HVACMode.OFF,
             "HVAC_MODE_COOL": HVACMode.COOL,
             "HVAC_MODE_HEAT": HVACMode.HEAT,
@@ -100,7 +100,7 @@ class SmartIfClimate(
 
         Need to be one of CURRENT_HVAC_*.
         """
-        hvac_action_translations = {
+        hvac_action_translations: dict[str, HVACAction] = {
             "HVAC_MODE_OFF": HVACAction.OFF,
             "HVAC_MODE_COOL": HVACAction.COOLING,
             "HVAC_MODE_HEAT": HVACAction.HEATING,
@@ -116,7 +116,7 @@ class SmartIfClimate(
 
         Requires ClimateEntityFeature.FAN_MODE.
         """
-        fan_mode_translations = {
+        fan_mode_translations: dict[str, str] = {
             "FAN_AUTO": FAN_AUTO,
             "FAN_LOW": FAN_LOW,
             "FAN_MEDIUM": FAN_MEDIUM,
@@ -127,23 +127,23 @@ class SmartIfClimate(
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
-        hvac_mode_translations = {
+        hvac_mode_translations: dict[HVACMode, str] = {
             HVACMode.OFF: "HVAC_MODE_OFF",
             HVACMode.COOL: "HVAC_MODE_COOL",
             HVACMode.HEAT: "HVAC_MODE_HEAT",
         }
 
         try:
-            await self.climates.set_hvac_mode(
-                self.entity_info.id,
-                hvac_mode_translations.get(hvac_mode, HVACMode.OFF),
+            await self._climates.set_hvac_mode(
+                self.smartif_entity_id,
+                hvac_mode_translations.get(hvac_mode, "HVAC_MODE_OFF"),
             )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new target fan mode."""
-        fan_mode_translations = {
+        fan_mode_translations: dict[str, str] = {
             FAN_AUTO: "FAN_AUTO",
             FAN_LOW: "FAN_LOW",
             FAN_MEDIUM: "FAN_MEDIUM",
@@ -151,8 +151,8 @@ class SmartIfClimate(
         }
 
         try:
-            await self.climates.set_fan_mode(
-                self.entity_info.id, fan_mode_translations.get(fan_mode, FAN_AUTO)
+            await self._climates.set_fan_mode(
+                self.smartif_entity_id, fan_mode_translations.get(fan_mode, "FAN_AUTO")
             )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")
@@ -163,6 +163,8 @@ class SmartIfClimate(
             return
 
         try:
-            await self.climates.set_temperature(self.entity_info.id, float(temperature))
+            await self._climates.set_temperature(
+                self.smartif_entity_id, float(temperature)
+            )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")

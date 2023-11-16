@@ -78,12 +78,12 @@ class SmartIfAlarmControlPanel(
             AlarmControlPanelEntityFeature.ARM_AWAY
             | AlarmControlPanelEntityFeature.ARM_HOME
         )
-        self.alarm_control_panels = alarm_control_panels
+        self._alarm_control_panels: SmartIfAlarmControlPanels = alarm_control_panels
 
     @property
     def state(self) -> StateType:
         """Return the state of the entity."""
-        state_translations = {
+        state_translations: dict[str, str] = {
             "disarmed": STATE_ALARM_DISARMED,
             "pending": STATE_ALARM_PENDING,
             "triggered": STATE_ALARM_TRIGGERED,
@@ -96,20 +96,24 @@ class SmartIfAlarmControlPanel(
     async def async_alarm_disarm(self, code: str | None = None) -> None:
         """Send disarm command."""
         try:
-            await self.alarm_control_panels.alarm_disarm(self.entity_info.id, code)
+            await self._alarm_control_panels.alarm_disarm(self.smartif_entity_id, code)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Alarm")
 
     async def async_alarm_arm_home(self, code: str | None = None) -> None:
         """Send arm home command."""
         try:
-            await self.alarm_control_panels.alarm_arm_home(self.entity_info.id, code)
+            await self._alarm_control_panels.alarm_arm_home(
+                self.smartif_entity_id, code
+            )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Alarm")
 
     async def async_alarm_arm_away(self, code: str | None = None) -> None:
         """Send arm away command."""
         try:
-            await self.alarm_control_panels.alarm_arm_away(self.entity_info.id, code)
+            await self._alarm_control_panels.alarm_arm_away(
+                self.smartif_entity_id, code
+            )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Alarm")

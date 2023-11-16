@@ -33,9 +33,9 @@ class SmartIfEntity(Entity, Generic[TState]):
         state: SmartIfState | None,
     ) -> None:
         """Initialize a SmartIf entity."""
-        self.state_type = state_type
-        self.client = client
-        self.entity_info = entity_info
+        self._state_type: type[TState] = state_type
+        self._client: SmartIf = client
+        self._entity_info: SmartIfEntityInfo = entity_info
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entity_info.id)},
             manufacturer="Teldak",
@@ -49,23 +49,16 @@ class SmartIfEntity(Entity, Generic[TState]):
     def smart_if_state(self) -> TState:
         """Get the entity state."""
         assert self._state
-        return self.state_type.parse_obj(self._state.data[self.entity_info.id])
-
-        # return (
-        #     self.state_type.parse_obj(self._state.data[self.entity_info.id])
-        #     if self._state
-        #     else self.state_type()
-        # )
+        return self._state_type.parse_obj(self._state.get_data(self._entity_info.id))
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
-
         await super().async_added_to_hass()
 
         if self._state:
             self.async_on_remove(
                 self._state.async_add_listener(
-                    self.entity_info.id, self._handle_state_update
+                    self._entity_info.id, self._handle_state_update
                 )
             )
 
@@ -78,3 +71,8 @@ class SmartIfEntity(Entity, Generic[TState]):
     def should_poll(self) -> bool:
         """No need to poll. SmartIfState notifies entity of updates."""
         return False
+
+    @property
+    def smartif_entity_id(self) -> str:
+        """Returns the smartif entity id associated with this entity."""
+        return self._entity_info.id

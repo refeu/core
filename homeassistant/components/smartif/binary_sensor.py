@@ -57,7 +57,7 @@ class SmartIfBinarySensor(
             SmartIfBinarySensorState, client, binary_sensor_entity_info, state
         )
 
-        device_class_translations = {
+        device_class_translations: dict[str, BinarySensorDeviceClass] = {
             "motion": BinarySensorDeviceClass.MOTION,
             "garage_door": BinarySensorDeviceClass.GARAGE_DOOR,
             "window": BinarySensorDeviceClass.WINDOW,
@@ -71,7 +71,7 @@ class SmartIfBinarySensor(
         self._attr_device_class = device_class_translations.get(
             binary_sensor_entity_info.device_class, None
         )
-        self.binary_sensors = binary_sensors
+        self._binary_sensors: SmartIfBinarySensors = binary_sensors
 
     @property
     def is_on(self) -> bool | None:

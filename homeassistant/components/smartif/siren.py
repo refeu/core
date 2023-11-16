@@ -46,7 +46,7 @@ class SmartIfSiren(SmartIfEntity[SmartIfSirenState], SirenEntity):
     ) -> None:
         """Initialize SmartIf Siren."""
         super().__init__(SmartIfSirenState, client, siren_entity_info, state)
-        self.sirens = sirens
+        self._sirens: SmartIfSirens = sirens
 
     @property
     def is_on(self) -> bool | None:
@@ -56,13 +56,13 @@ class SmartIfSiren(SmartIfEntity[SmartIfSirenState], SirenEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
         try:
-            await self.sirens.turn_off(self.entity_info.id)
+            await self._sirens.turn_off(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Siren")
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
         try:
-            await self.sirens.turn_on(self.entity_info.id)
+            await self._sirens.turn_on(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Siren")

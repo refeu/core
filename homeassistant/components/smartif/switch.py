@@ -53,7 +53,7 @@ class SmartIfSwitch(SmartIfEntity[SmartIfSwitchState], SwitchEntity):
             else SwitchDeviceClass.SWITCH
         )
 
-        self.switches = switches
+        self._switches: SmartIfSwitches = switches
 
     @property
     def is_on(self) -> bool | None:
@@ -63,13 +63,13 @@ class SmartIfSwitch(SmartIfEntity[SmartIfSwitchState], SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the entity off."""
         try:
-            await self.switches.turn_off(self.entity_info.id)
+            await self._switches.turn_off(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Switch")
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the entity on."""
         try:
-            await self.switches.turn_on(self.entity_info.id)
+            await self._switches.turn_on(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Switch")

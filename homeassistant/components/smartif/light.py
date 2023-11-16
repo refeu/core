@@ -54,7 +54,7 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], LightEntity):
             self._attr_color_mode = ColorMode.ONOFF
             self._attr_supported_color_modes = {ColorMode.ONOFF}
 
-        self.lights = lights
+        self._lights: SmartIfLights = lights
 
     @property
     def is_on(self) -> bool:
@@ -69,7 +69,7 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], LightEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light."""
         try:
-            await self.lights.turn_off(self.entity_info.id)
+            await self._lights.turn_off(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Light")
 
@@ -83,6 +83,6 @@ class SmartIfLight(SmartIfEntity[SmartIfLightState], LightEntity):
                 and ATTR_BRIGHTNESS in kwargs
                 else None
             )
-            await self.lights.turn_on(self.entity_info.id, brightness)
+            await self._lights.turn_on(self.smartif_entity_id, brightness)
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Light")

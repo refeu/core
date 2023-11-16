@@ -48,14 +48,14 @@ class SmartIfCamera(SmartIfEntity[BaseModel], Camera):
         self._attr_is_recording = False
         self._attr_is_streaming = False
         self._attr_is_on = True
-        self.cameras = cameras
+        self._cameras: SmartIfCameras = cameras
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         """Return bytes of camera image."""
         try:
-            return await self.cameras.camera_image(self.entity_info.id)
+            return await self._cameras.camera_image(self.smartif_entity_id)
         except SmartIfError:
             LOGGER.error("An error occurred while getting the SmartIf Camera Image")
             return None

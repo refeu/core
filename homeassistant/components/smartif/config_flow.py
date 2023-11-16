@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from aiohttp import ClientSession
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow
@@ -21,8 +22,8 @@ class SmartIfFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    host: str
-    port: int
+    _host: str
+    _port: int
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -31,19 +32,19 @@ class SmartIfFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input is None:
             return self._async_show_setup_form()
 
-        self.host = user_input[CONF_HOST]
-        self.port = user_input[CONF_PORT]
+        self._host: str = user_input[CONF_HOST]
+        self._port: int = user_input[CONF_PORT]
 
         try:
-            session = async_get_clientsession(self.hass)
-            smart_if = SmartIf(self.host, self.port, session=session)
+            session: ClientSession = async_get_clientsession(self.hass)
+            smart_if = SmartIf(self._host, self._port, session=session)
             await smart_if.devices_state()
 
             await self.async_set_unique_id(
-                self.host + str(self.port), raise_on_progress=False
+                self._host + str(self._port), raise_on_progress=False
             )
             self._abort_if_unique_id_configured(
-                updates={CONF_HOST: self.host, CONF_PORT: self.port}
+                updates={CONF_HOST: self._host, CONF_PORT: self._port}
             )
         except SmartIfError:
             return self._async_show_setup_form({"base": "cannot_connect"})
@@ -70,5 +71,5 @@ class SmartIfFlowHandler(ConfigFlow, domain=DOMAIN):
     def _async_create_entry(self) -> FlowResult:
         return self.async_create_entry(
             title="Teldak",
-            data={CONF_HOST: self.host, CONF_PORT: self.port},
+            data={CONF_HOST: self._host, CONF_PORT: self._port},
         )

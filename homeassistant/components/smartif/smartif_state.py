@@ -11,7 +11,7 @@ class SmartIfState:
     def __init__(self, data: dict[str, Any]) -> None:
         """Initialize the SmartIf State."""
 
-        self.data = data
+        self._data: dict[str, Any] = data
         self._listeners: dict[str, list[CALLBACK_TYPE]] = {}
 
     @callback
@@ -34,20 +34,15 @@ class SmartIfState:
     @callback
     def async_set_updated_data(self, entity_id: str, data: Any) -> None:
         """Update the data and notify listeners."""
-
-        self.data[entity_id] = data
+        self._data[entity_id] = data
         self.async_update_listeners(entity_id)
 
     @callback
     def async_update_listeners(self, entity_id: str) -> None:
         """Call all registered listeners."""
+        for update_callback in list(self._listeners.get(entity_id, {})):
+            update_callback()
 
-        if entity_id in self._listeners:
-            for update_callback in list(self._listeners[entity_id]):
-                update_callback()
-
-    def first_refresh(self, devices_state: dict[str, Any]) -> None:
-        """Refresh data for the first time."""
-
-        for entity_id, value in devices_state.items():
-            self.data[entity_id] = value
+    def get_data(self, entity_id: str) -> Any:
+        """Return the state data."""
+        return self._data[entity_id]

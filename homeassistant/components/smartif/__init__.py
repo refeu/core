@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 
+from aiohttp import ClientSession
 import unidecode
 
 from homeassistant.config_entries import ConfigEntry
@@ -38,7 +39,7 @@ class HomeAssistantSmartIfData:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SmartIf from a config entry."""
-    session = async_get_clientsession(hass)
+    session: ClientSession = async_get_clientsession(hass)
     smartif = await hass.async_add_executor_job(
         SmartIf, entry.data[CONF_HOST], entry.data[CONF_PORT], session
     )
@@ -47,7 +48,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_hass_events(hass, entry)
-    smartif_services: SmartIfServices = SmartIfServices(smartif)
+    smartif_services = SmartIfServices(smartif)
     service_names: list[str] = await smartif_services.all()
     await hass.async_add_executor_job(
         setup_hass_services, hass, entry, smartif_services, service_names
@@ -62,7 +63,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for service_name in data.all_services:
         hass.services.async_remove(DOMAIN, service_name)
 
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if data.event_listener:
         data.event_listener()
