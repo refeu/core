@@ -1,5 +1,6 @@
 """Support for SmartIf."""
 
+from asyncio import sleep
 from dataclasses import dataclass, field
 
 from aiohttp import ClientSession
@@ -10,7 +11,8 @@ from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import DOMAIN, UPDATE_EVENT
+from .const import DOMAIN, INITIAL_CONNECTION_RETRIES, SCAN_INTERVAL, UPDATE_EVENT
+from .exceptions import SmartIfConnectionError
 from .smartif import SmartIf
 from .smartif_services import SmartIfServices
 from .smartif_state import SmartIfState
@@ -43,9 +45,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     smartif = await hass.async_add_executor_job(
         SmartIf, entry.data[CONF_HOST], entry.data[CONF_PORT], session
     )
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
-        SmartIfState(await smartif.devices_state()), smartif
-    )
+
+    data: HomeAssistantSmartIfData
+
+    for n in range(1, INITIAL_CONNECTION_RETRIES + 1):
+        try:
+            data = HomeAssistantSmartIfData(
+                SmartIfState(await smartif.devices_state()), smartif
+            )
+            break
+        except SmartIfConnectionError:
+            if n == INITIAL_CONNECTION_RETRIES:
+                raise
+
+            await sleep(SCAN_INTERVAL.seconds)
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = data
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_hass_events(hass, entry)
     smartif_services = SmartIfServices(smartif)
