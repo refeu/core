@@ -10,4 +10,4 @@ DOMAIN: Final = "smartif"
 LOGGER: Logger = logging.getLogger(__package__)
 SCAN_INTERVAL = timedelta(seconds=10)
 UPDATE_EVENT: Final = DOMAIN + "_entity_update"
-INITIAL_CONNECTION_RETRIES: Final = 3
+INITIAL_CONNECTION_RETRIES: Final = 10
