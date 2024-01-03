@@ -1,7 +1,7 @@
 """Support for SmartIf."""
 
-from asyncio import sleep
 from dataclasses import dataclass, field
+from typing import Any
 
 from aiohttp import ClientSession
 import unidecode
@@ -10,9 +10,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, INITIAL_CONNECTION_RETRIES, SCAN_INTERVAL, UPDATE_EVENT
-from .exceptions import SmartIfConnectionError
+from .const import DOMAIN, LOGGER, SCAN_INTERVAL, UPDATE_EVENT
 from .smartif import SmartIf
 from .smartif_services import SmartIfServices
 from .smartif_state import SmartIfState
@@ -46,21 +46,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         SmartIf, entry.data[CONF_HOST], entry.data[CONF_PORT], session
     )
 
-    data: HomeAssistantSmartIfData
+    async def update() -> dict[str, Any]:
+        return await smartif.devices_state()
 
-    for n in range(1, INITIAL_CONNECTION_RETRIES + 1):
-        try:
-            data = HomeAssistantSmartIfData(
-                SmartIfState(await smartif.devices_state()), smartif
-            )
-            break
-        except SmartIfConnectionError:
-            if n == INITIAL_CONNECTION_RETRIES:
-                raise
+    coordinator: DataUpdateCoordinator[dict[str, Any]] = DataUpdateCoordinator(
+        hass,
+        LOGGER,
+        name=f"{DOMAIN}_{entry.data[CONF_HOST]}",
+        update_interval=SCAN_INTERVAL,
+        update_method=update,
+    )
 
-            await sleep(SCAN_INTERVAL.seconds)
+    await coordinator.async_config_entry_first_refresh()
+    await coordinator.async_shutdown()
+    await async_continue_setup(hass, entry, smartif, SmartIfState(coordinator.data))
+    return True
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = data
+
+async def async_continue_setup(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    smartif: SmartIf,
+    smartIfState: SmartIfState,
+) -> None:
+    """Continue the setup after we have the devices state."""
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
+        smartIfState, smartif
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_hass_events(hass, entry)
     smartif_services = SmartIfServices(smartif)
@@ -68,7 +81,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.async_add_executor_job(
         setup_hass_services, hass, entry, smartif_services, service_names
     )
-    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
