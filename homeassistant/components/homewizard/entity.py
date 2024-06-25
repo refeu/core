@@ -1,4 +1,5 @@
 """Base entity for the HomeWizard integration."""
+
 from __future__ import annotations
 
 from homeassistant.const import ATTR_CONNECTIONS, ATTR_IDENTIFIERS
@@ -16,7 +17,7 @@ class HomeWizardEntity(CoordinatorEntity[HWEnergyDeviceUpdateCoordinator]):
 
     def __init__(self, coordinator: HWEnergyDeviceUpdateCoordinator) -> None:
         """Initialize the HomeWizard entity."""
-        super().__init__(coordinator=coordinator)
+        super().__init__(coordinator)
         self._attr_device_info = DeviceInfo(
             manufacturer="HomeWizard",
             sw_version=coordinator.data.device.firmware_version,

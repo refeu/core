@@ -34,6 +34,7 @@ Icon
 
 # GITHUB Proposed Python stuff:
 *.py[cod]
+__pycache__
 
 # C extensions
 *.so
@@ -133,3 +134,5 @@ tmp_cache
 # python-language-server / Rope
 .ropeproject
 homeassistant/generated/*
+# Will be created from script/split_tests.py
+pytest_buckets.txt
