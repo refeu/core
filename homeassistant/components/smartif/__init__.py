@@ -18,12 +18,12 @@ from .smartif_services import SmartIfServices
 from .smartif_state import SmartIfState
 
 PLATFORMS = [
-    Platform.LIGHT,
     Platform.ALARM_CONTROL_PANEL,
     Platform.BINARY_SENSOR,
     Platform.CAMERA,
     Platform.CLIMATE,
     Platform.COVER,
+    Platform.LIGHT,
     Platform.SIREN,
     Platform.SWITCH,
 ]
