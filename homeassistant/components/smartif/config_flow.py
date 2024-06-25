@@ -1,4 +1,5 @@
 """Config flow to configure the SmartIf integration."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -6,10 +7,9 @@ from typing import Any
 from aiohttp import ClientSession
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
@@ -27,7 +27,7 @@ class SmartIfFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle a flow initiated by the user."""
         if user_input is None:
             return self._async_show_setup_form()
@@ -54,7 +54,7 @@ class SmartIfFlowHandler(ConfigFlow, domain=DOMAIN):
     @callback
     def _async_show_setup_form(
         self, errors: dict[str, str] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Show the setup form to the user."""
         return self.async_show_form(
             step_id="user",
@@ -68,7 +68,7 @@ class SmartIfFlowHandler(ConfigFlow, domain=DOMAIN):
         )
 
     @callback
-    def _async_create_entry(self) -> FlowResult:
+    def _async_create_entry(self) -> ConfigFlowResult:
         return self.async_create_entry(
             title="Teldak",
             data={CONF_HOST: self._host, CONF_PORT: self._port},

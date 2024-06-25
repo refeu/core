@@ -1,4 +1,5 @@
 """Asynchronous Python client for SmartIf."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -15,6 +16,7 @@ class SmartIfEntityInfo(BaseModel):
     Attributes:
         name: Name of the entity.
         id: A unique identifier for this entity.
+
     """
 
     name: str = Field(...)
@@ -29,6 +31,7 @@ class SmartIfLightEntityInfo(SmartIfEntityInfo):
 
     Attributes:
         supports_brightness: The light can be dimmed.
+
     """
 
     supports_brightness: bool = Field(..., alias="supportsBrightness")
@@ -42,6 +45,7 @@ class SmartIfLightState(BaseModel):
     Attributes:
         is_on: True if the light entity is on.
         brightness: brightness of this light between 0..255.
+
     """
 
     is_on: bool = Field(..., alias="isOn")
@@ -56,6 +60,7 @@ class SmartIfAlarmControlPanelState(BaseModel):
 
     Attributes:
         state: SmartIf Alarm Control Panel state.
+
     """
 
     state: str = Field(...)
@@ -69,6 +74,7 @@ class SmartIfBinarySensorEntityInfo(SmartIfEntityInfo):
 
     Attributes:
         device_class: Type of binary sensor.
+
     """
 
     device_class: str = Field(..., alias="deviceClass")
@@ -82,6 +88,7 @@ class SmartIfBinarySensorState(BaseModel):
     Attributes:
         is_on: True if the light entity is on.
         brightness: brightness of this light between 0..255.
+
     """
 
     is_on: bool = Field(..., alias="isOn")
@@ -95,6 +102,7 @@ class SmartIfClimateEntityInfo(SmartIfEntityInfo):
 
     Attributes:
         supports_state: Supports state.
+
     """
 
     supports_state: str = Field(..., alias="supportsState")
@@ -109,6 +117,7 @@ class SmartIfClimateState(BaseModel):
         target_temperature: The temperature currently set to be reached.
         hvac_mode: The current operation (e.g. heat, cool, idle).
         fan_mode: Returns the current fan mode.
+
     """
 
     target_temperature: float = Field(..., alias="targetTemperature")
@@ -127,6 +136,7 @@ class SmartIfCoverEntityInfo(SmartIfEntityInfo):
         supports_set_position: The cover supports moving to a specific position between opened and closed.
         supports_stop: The cover supports stopping the current action (open, close, set position).
         supports_close: The cover supports being closed.
+
     """
 
     device_class: str = Field(..., alias="deviceClass")
@@ -145,6 +155,7 @@ class SmartIfCoverState(BaseModel):
         is_opening: If the cover is opening or not.
         is_closing: If the cover is closing or not.
         is_closed: If the cover is closed or not.
+
     """
 
     current_cover_position: Any = Field(None, alias="currentCoverPosition")
@@ -161,6 +172,7 @@ class SmartIfSirenState(BaseModel):
 
     Attributes:
         is_on: Whether the device is on or off.
+
     """
 
     is_on: bool = Field(..., alias="isOn")
@@ -174,6 +186,7 @@ class SmartIfSwitchEntityInfo(SmartIfEntityInfo):
 
     Attributes:
         device_class: Return the class of this entity.
+
     """
 
     device_class: str = Field(..., alias="deviceClass")
@@ -186,6 +199,7 @@ class SmartIfSwitchState(BaseModel):
 
     Attributes:
         is_on: Whether the device is on or off.
+
     """
 
     is_on: bool = Field(..., alias="isOn")

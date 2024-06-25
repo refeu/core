@@ -1,10 +1,11 @@
 """Asynchronous Python client for SmartIf."""
+
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
 import socket
-from typing import Any, cast
+from typing import Any, Self, cast
 
 from aiohttp import ClientResponse
 from aiohttp.client import ClientError, ClientResponseError, ClientSession
@@ -49,7 +50,7 @@ class SmartIf:
                     method, url, json=data, headers=headers
                 )
                 response.raise_for_status()
-        except asyncio.TimeoutError as exception:
+        except TimeoutError as exception:
             raise SmartIfConnectionError(
                 "Timeout occurred while connecting to SmartIf"
             ) from exception
@@ -82,6 +83,7 @@ class SmartIf:
                         the SmartIf.
                 SmartIfError: Received an unexpected response from the SmartIf
                         API.
+
         """
         response: ClientResponse = await self._do_request(uri, method=method, data=data)
         content_type: str = response.headers.get("Content-Type", "")
@@ -112,6 +114,7 @@ class SmartIf:
                         the SmartIf.
                 SmartIfError: Received an unexpected response from the SmartIf
                         API.
+
         """
         response: ClientResponse = await self._do_request(uri, method=method, data=data)
         return await response.read()
@@ -125,11 +128,12 @@ class SmartIf:
         if self.session and self._close_session:
             await self.session.close()
 
-    async def __aenter__(self) -> SmartIf:
+    async def __aenter__(self) -> Self:
         """Async enter.
 
         Returns:
             The SmartIf object.
+
         """
         return self
 
@@ -138,5 +142,6 @@ class SmartIf:
 
         Args:
             _exc_info: Exec type.
+
         """
         await self.close()
