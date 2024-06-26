@@ -21,7 +21,7 @@ async def async_setup_entry(
         [
             SmartIfEvent(
                 smart_if_events,
-                "Video Door",
+                "Video Door Call",
                 "VideoDoorCall",
                 VIDEODOOR_CALL_EXTERNAL_EVENT,
                 EventDeviceClass.DOORBELL,
