@@ -10,4 +10,5 @@ DOMAIN: Final = "smartif"
 LOGGER: Logger = logging.getLogger(__package__)
 SCAN_INTERVAL = timedelta(seconds=10)
 UPDATE_EVENT: Final = DOMAIN + "_entity_update"
+VIDEODOOR_CALL_EXTERNAL_EVENT: Final = DOMAIN + "_videodoorcall"
 INITIAL_CONNECTION_RETRIES: Final = 10

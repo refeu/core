@@ -1,4 +1,5 @@
 """Support for SmartIf lights."""
+
 from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
@@ -52,7 +53,7 @@ class SmartIfBinarySensor(
         binary_sensors: SmartIfBinarySensors,
         binary_sensor_entity_info: SmartIfBinarySensorEntityInfo,
     ) -> None:
-        """Initialize SmartIf Alarm."""
+        """Initialize SmartIf Binary Sensor."""
         super().__init__(
             SmartIfBinarySensorState, client, binary_sensor_entity_info, state
         )

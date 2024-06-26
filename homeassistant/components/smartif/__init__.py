@@ -12,8 +12,15 @@ from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DOMAIN, LOGGER, SCAN_INTERVAL, UPDATE_EVENT
+from .const import (
+    DOMAIN,
+    LOGGER,
+    SCAN_INTERVAL,
+    UPDATE_EVENT,
+    VIDEODOOR_CALL_EXTERNAL_EVENT,
+)
 from .smartif import SmartIf
+from .smartif_events import SmartIfEvents
 from .smartif_services import SmartIfServices
 from .smartif_state import SmartIfState
 
@@ -23,6 +30,7 @@ PLATFORMS = [
     Platform.CAMERA,
     Platform.CLIMATE,
     Platform.COVER,
+    Platform.EVENT,
     Platform.LIGHT,
     Platform.SIREN,
     Platform.SWITCH,
@@ -34,9 +42,11 @@ class HomeAssistantSmartIfData:
     """SmartIf data stored in the Home Assistant data object."""
 
     state: SmartIfState
+    events: SmartIfEvents
     client: SmartIf
     all_services: dict[str, str] = field(default_factory=dict)
-    event_listener: CALLBACK_TYPE | None = None
+    entity_update_listener: CALLBACK_TYPE | None = None
+    videodoor_call_listener: CALLBACK_TYPE | None = None
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -59,7 +69,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await coordinator.async_config_entry_first_refresh()
     await coordinator.async_shutdown()
-    await async_continue_setup(hass, entry, smartif, SmartIfState(coordinator.data))
+    await async_continue_setup(
+        hass, entry, smartif, SmartIfState(coordinator.data), SmartIfEvents()
+    )
     return True
 
 
@@ -68,11 +80,12 @@ async def async_continue_setup(
     entry: ConfigEntry,
     smartif: SmartIf,
     smartIfState: SmartIfState,
+    smartIfEvents: SmartIfEvents,
 ) -> None:
     """Continue the setup after we have the devices state."""
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = HomeAssistantSmartIfData(
-        smartIfState, smartif
+        smartIfState, smartIfEvents, smartif
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await setup_hass_events(hass, entry)
@@ -92,8 +105,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if data.event_listener:
-        data.event_listener()
+    if data.entity_update_listener:
+        data.entity_update_listener()
+
+    if data.videodoor_call_listener:
+        data.videodoor_call_listener()
 
     hass.data[DOMAIN].pop(entry.entry_id)
 
@@ -132,4 +148,11 @@ async def setup_hass_events(hass: HomeAssistant, entry: ConfigEntry) -> None:
         for smartif_entity_id, entity_data in event.data.items():
             data.state.async_set_updated_data(smartif_entity_id, entity_data)
 
-    data.event_listener = hass.bus.async_listen(UPDATE_EVENT, update_event)
+    data.entity_update_listener = hass.bus.async_listen(UPDATE_EVENT, update_event)
+
+    async def on_event(event: Event) -> None:
+        data.events.async_on_event(str(event.event_type))
+
+    data.videodoor_call_listener = hass.bus.async_listen(
+        VIDEODOOR_CALL_EXTERNAL_EVENT, on_event
+    )
