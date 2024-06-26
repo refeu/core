@@ -5,6 +5,7 @@ from typing import Final
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import HomeAssistantSmartIfData
@@ -20,17 +21,44 @@ async def async_setup_entry(
     """Set up SmartIf Event based on a config entry."""
     data: HomeAssistantSmartIfData = hass.data[DOMAIN][entry.entry_id]
     smart_if_events: SmartIfEvents = data.events
-    async_add_entities([SmartIfVideoDoorCallEvent(smart_if_events)], True)
+    async_add_entities(
+        [
+            SmartIfEvent(
+                smart_if_events,
+                VIDEODOOR_CALL_EVENT,
+                VIDEODOOR_CALL_EXTERNAL_EVENT,
+                EventDeviceClass.DOORBELL,
+            )
+        ],
+        True,
+    )
 
 
-class SmartIfVideoDoorCallEvent(EventEntity):
-    """Defines an SmartIf Video Door Call Event."""
+class SmartIfEvent(EventEntity):
+    """Defines an SmartIf Event."""
 
-    def __init__(self, events: SmartIfEvents) -> None:
-        """Initialize SmartIf Video Door Call Event."""
+    def __init__(
+        self,
+        events: SmartIfEvents,
+        event_name: str,
+        external_event_name: str,
+        device_class: EventDeviceClass | None,
+    ) -> None:
+        """Initialize SmartIf Event."""
         self._events = events
-        self._attr_device_class = EventDeviceClass.DOORBELL
-        self._attr_event_types = [VIDEODOOR_CALL_EVENT]
+        self._event_name = event_name
+        self._external_event_name = external_event_name
+        self._attr_device_class = device_class
+        self._attr_event_types = [event_name]
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, event_name)},
+            manufacturer="Teldak",
+            model="SmartIf",
+            name=event_name,
+        )
+        self._attr_name = event_name
+        self._attr_unique_id = event_name
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
@@ -38,12 +66,12 @@ class SmartIfVideoDoorCallEvent(EventEntity):
 
         self.async_on_remove(
             self._events.async_add_listener(
-                VIDEODOOR_CALL_EXTERNAL_EVENT, self._async_handle_event
+                self._external_event_name, self._async_handle_event
             )
         )
 
     @callback
     def _async_handle_event(self) -> None:
-        """Handle the Video Door Call Event."""
-        self._trigger_event(VIDEODOOR_CALL_EVENT, None)
+        """Handle the event."""
+        self._trigger_event(self._event_name, None)
         self.async_write_ha_state()
