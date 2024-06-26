@@ -1,7 +1,5 @@
 """Support for SmartIf events."""
 
-from typing import Final
-
 from homeassistant.components.event import EventDeviceClass, EventEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -11,8 +9,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import HomeAssistantSmartIfData
 from .const import DOMAIN, VIDEODOOR_CALL_EXTERNAL_EVENT
 from .smartif_events import SmartIfEvents
-
-VIDEODOOR_CALL_EVENT: Final = "VideoDoorCall"
 
 
 async def async_setup_entry(
@@ -25,7 +21,8 @@ async def async_setup_entry(
         [
             SmartIfEvent(
                 smart_if_events,
-                VIDEODOOR_CALL_EVENT,
+                "Video Door",
+                "VideoDoorCall",
                 VIDEODOOR_CALL_EXTERNAL_EVENT,
                 EventDeviceClass.DOORBELL,
             )
@@ -40,6 +37,7 @@ class SmartIfEvent(EventEntity):
     def __init__(
         self,
         events: SmartIfEvents,
+        name: str,
         event_name: str,
         external_event_name: str,
         device_class: EventDeviceClass | None,
@@ -55,9 +53,9 @@ class SmartIfEvent(EventEntity):
             identifiers={(DOMAIN, event_name)},
             manufacturer="Teldak",
             model="SmartIf",
-            name=event_name,
+            name=name,
         )
-        self._attr_name = event_name
+        self._attr_name = name
         self._attr_unique_id = event_name
 
     async def async_added_to_hass(self) -> None:
