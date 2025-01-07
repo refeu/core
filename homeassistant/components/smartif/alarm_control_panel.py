@@ -1,23 +1,16 @@
 """Support for SmartIf lights."""
+
 from __future__ import annotations
 
 from homeassistant.components.alarm_control_panel import (
     AlarmControlPanelEntity,
     AlarmControlPanelEntityFeature,
+    AlarmControlPanelState,
     CodeFormat,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    STATE_ALARM_ARMED_AWAY,
-    STATE_ALARM_ARMED_HOME,
-    STATE_ALARM_ARMING,
-    STATE_ALARM_DISARMED,
-    STATE_ALARM_PENDING,
-    STATE_ALARM_TRIGGERED,
-)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import StateType
 
 from . import HomeAssistantSmartIfData
 from .const import DOMAIN, LOGGER
@@ -81,15 +74,15 @@ class SmartIfAlarmControlPanel(
         self._alarm_control_panels: SmartIfAlarmControlPanels = alarm_control_panels
 
     @property
-    def state(self) -> StateType:
-        """Return the state of the entity."""
-        state_translations: dict[str, str] = {
-            "disarmed": STATE_ALARM_DISARMED,
-            "pending": STATE_ALARM_PENDING,
-            "triggered": STATE_ALARM_TRIGGERED,
-            "arming": STATE_ALARM_ARMING,
-            "armed_home": STATE_ALARM_ARMED_HOME,
-            "armed_away": STATE_ALARM_ARMED_AWAY,
+    def alarm_state(self) -> AlarmControlPanelState | None:
+        """Return the current alarm control panel entity state."""
+        state_translations: dict[str, AlarmControlPanelState] = {
+            "disarmed": AlarmControlPanelState.DISARMED,
+            "pending": AlarmControlPanelState.PENDING,
+            "triggered": AlarmControlPanelState.TRIGGERED,
+            "arming": AlarmControlPanelState.ARMING,
+            "armed_home": AlarmControlPanelState.ARMED_HOME,
+            "armed_away": AlarmControlPanelState.ARMED_AWAY,
         }
         return state_translations.get(self.smart_if_state().state, None)
 
