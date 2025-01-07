@@ -10,17 +10,18 @@ import pytest
 
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.shelly import MacAddressMismatchError
 from homeassistant.components.shelly.const import (
     ATTR_CHANNEL,
     ATTR_CLICK_TYPE,
     ATTR_DEVICE,
     ATTR_GENERATION,
     CONF_BLE_SCANNER_MODE,
+    CONF_SLEEP_PERIOD,
     DOMAIN,
     ENTRY_RELOAD_COOLDOWN,
     MAX_PUSH_UPDATE_FAILURES,
     RPC_RECONNECT_INTERVAL,
-    SLEEP_PERIOD_MULTIPLIER,
     UPDATE_PERIOD_MULTIPLIER,
     BLEScannerMode,
 )
@@ -254,11 +255,13 @@ async def test_block_polling_connection_error(
     assert get_entity_state(hass, "switch.test_name_channel_1") == STATE_UNAVAILABLE
 
 
+@pytest.mark.parametrize("exc", [DeviceConnectionError, MacAddressMismatchError])
 async def test_block_rest_update_connection_error(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     mock_block_device: Mock,
     monkeypatch: pytest.MonkeyPatch,
+    exc: Exception,
 ) -> None:
     """Test block REST update connection error."""
     entity_id = register_entity(hass, BINARY_SENSOR_DOMAIN, "test_name_cloud", "cloud")
@@ -269,11 +272,7 @@ async def test_block_rest_update_connection_error(
     await mock_rest_update(hass, freezer)
     assert get_entity_state(hass, entity_id) == STATE_ON
 
-    monkeypatch.setattr(
-        mock_block_device,
-        "update_shelly",
-        AsyncMock(side_effect=DeviceConnectionError),
-    )
+    monkeypatch.setattr(mock_block_device, "update_shelly", AsyncMock(side_effect=exc))
     await mock_rest_update(hass, freezer)
 
     assert get_entity_state(hass, entity_id) == STATE_UNAVAILABLE
@@ -546,6 +545,7 @@ async def test_rpc_update_entry_sleep_period(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test RPC update entry sleep period."""
+    monkeypatch.setattr(mock_rpc_device, "connected", False)
     monkeypatch.setitem(mock_rpc_device.status["sys"], "wakeup_period", 600)
     entry = await init_integration(hass, 2, sleep_period=600)
     register_entity(
@@ -564,7 +564,7 @@ async def test_rpc_update_entry_sleep_period(
 
     # Move time to generate sleep period update
     monkeypatch.setitem(mock_rpc_device.status["sys"], "wakeup_period", 3600)
-    freezer.tick(timedelta(seconds=600 * SLEEP_PERIOD_MULTIPLIER))
+    freezer.tick(timedelta(seconds=600 * UPDATE_PERIOD_MULTIPLIER))
     async_fire_time_changed(hass)
     await hass.async_block_till_done(wait_background_tasks=True)
 
@@ -579,6 +579,7 @@ async def test_rpc_sleeping_device_no_periodic_updates(
 ) -> None:
     """Test RPC sleeping device no periodic updates."""
     entity_id = f"{SENSOR_DOMAIN}.test_name_temperature"
+    monkeypatch.setattr(mock_rpc_device, "connected", False)
     monkeypatch.setitem(mock_rpc_device.status["sys"], "wakeup_period", 1000)
     entry = await init_integration(hass, 2, sleep_period=1000)
     register_entity(
@@ -596,7 +597,7 @@ async def test_rpc_sleeping_device_no_periodic_updates(
     assert get_entity_state(hass, entity_id) == "22.9"
 
     # Move time to generate polling
-    freezer.tick(timedelta(seconds=SLEEP_PERIOD_MULTIPLIER * 1000))
+    freezer.tick(timedelta(seconds=UPDATE_PERIOD_MULTIPLIER * 1000))
     async_fire_time_changed(hass)
     await hass.async_block_till_done(wait_background_tasks=True)
 
@@ -610,6 +611,7 @@ async def test_rpc_sleeping_device_firmware_unsupported(
     issue_registry: ir.IssueRegistry,
 ) -> None:
     """Test RPC sleeping device firmware not supported."""
+    monkeypatch.setattr(mock_rpc_device, "connected", False)
     monkeypatch.setattr(mock_rpc_device, "firmware_supported", False)
     entry = await init_integration(hass, 2, sleep_period=3600)
 
@@ -675,7 +677,7 @@ async def test_rpc_polling_auth_error(
 
     monkeypatch.setattr(
         mock_rpc_device,
-        "update_status",
+        "poll",
         AsyncMock(
             side_effect=InvalidAuthError,
         ),
@@ -699,11 +701,13 @@ async def test_rpc_polling_auth_error(
     assert flow["context"].get("entry_id") == entry.entry_id
 
 
+@pytest.mark.parametrize("exc", [DeviceConnectionError, MacAddressMismatchError])
 async def test_rpc_reconnect_error(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     mock_rpc_device: Mock,
     monkeypatch: pytest.MonkeyPatch,
+    exc: Exception,
 ) -> None:
     """Test RPC reconnect error."""
     await init_integration(hass, 2)
@@ -711,13 +715,7 @@ async def test_rpc_reconnect_error(
     assert get_entity_state(hass, "switch.test_switch_0") == STATE_ON
 
     monkeypatch.setattr(mock_rpc_device, "connected", False)
-    monkeypatch.setattr(
-        mock_rpc_device,
-        "initialize",
-        AsyncMock(
-            side_effect=DeviceConnectionError,
-        ),
-    )
+    monkeypatch.setattr(mock_rpc_device, "initialize", AsyncMock(side_effect=exc))
 
     # Move time to generate reconnect
     freezer.tick(timedelta(seconds=RPC_RECONNECT_INTERVAL))
@@ -765,7 +763,7 @@ async def test_rpc_polling_connection_error(
 
     monkeypatch.setattr(
         mock_rpc_device,
-        "update_status",
+        "poll",
         AsyncMock(
             side_effect=DeviceConnectionError,
         ),
@@ -852,6 +850,27 @@ async def test_rpc_runs_connected_events_when_initialized(
     assert call.script_list() in mock_rpc_device.mock_calls
 
 
+async def test_rpc_sleeping_device_unload_ignore_ble_scanner(
+    hass: HomeAssistant,
+    mock_rpc_device: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test RPC sleeping device does not stop ble scanner on unload."""
+    monkeypatch.setattr(mock_rpc_device, "connected", True)
+    entry = await init_integration(hass, 2, sleep_period=1000)
+
+    # Make device online
+    mock_rpc_device.mock_online()
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    # Unload
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # BLE script list is called during stop ble scanner
+    assert call.script_list() not in mock_rpc_device.mock_calls
+
+
 async def test_block_sleeping_device_connection_error(
     hass: HomeAssistant,
     device_registry: dr.DeviceRegistry,
@@ -863,9 +882,14 @@ async def test_block_sleeping_device_connection_error(
     """Test block sleeping device connection error during initialize."""
     sleep_period = 1000
     entry = await init_integration(hass, 1, sleep_period=sleep_period, skip_setup=True)
-    register_device(device_registry, entry)
+    device = register_device(device_registry, entry)
     entity_id = register_entity(
-        hass, BINARY_SENSOR_DOMAIN, "test_name_motion", "sensor_0-motion", entry
+        hass,
+        BINARY_SENSOR_DOMAIN,
+        "test_name_motion",
+        "sensor_0-motion",
+        entry,
+        device_id=device.id,
     )
     mock_restore_cache(hass, [State(entity_id, STATE_ON)])
     monkeypatch.setattr(mock_block_device, "initialized", False)
@@ -889,7 +913,7 @@ async def test_block_sleeping_device_connection_error(
     assert get_entity_state(hass, entity_id) == STATE_ON
 
     # Move time to generate sleep period update
-    freezer.tick(timedelta(seconds=sleep_period * SLEEP_PERIOD_MULTIPLIER))
+    freezer.tick(timedelta(seconds=sleep_period * UPDATE_PERIOD_MULTIPLIER))
     async_fire_time_changed(hass)
     await hass.async_block_till_done(wait_background_tasks=True)
 
@@ -908,11 +932,17 @@ async def test_rpc_sleeping_device_connection_error(
     """Test RPC sleeping device connection error during initialize."""
     sleep_period = 1000
     entry = await init_integration(hass, 2, sleep_period=1000, skip_setup=True)
-    register_device(device_registry, entry)
+    device = register_device(device_registry, entry)
     entity_id = register_entity(
-        hass, BINARY_SENSOR_DOMAIN, "test_name_cloud", "cloud-cloud", entry
+        hass,
+        BINARY_SENSOR_DOMAIN,
+        "test_name_cloud",
+        "cloud-cloud",
+        entry,
+        device_id=device.id,
     )
     mock_restore_cache(hass, [State(entity_id, STATE_ON)])
+    monkeypatch.setattr(mock_rpc_device, "connected", False)
     monkeypatch.setattr(mock_rpc_device, "initialized", False)
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -934,9 +964,50 @@ async def test_rpc_sleeping_device_connection_error(
     assert get_entity_state(hass, entity_id) == STATE_ON
 
     # Move time to generate sleep period update
-    freezer.tick(timedelta(seconds=sleep_period * SLEEP_PERIOD_MULTIPLIER))
+    freezer.tick(timedelta(seconds=sleep_period * UPDATE_PERIOD_MULTIPLIER))
     async_fire_time_changed(hass)
     await hass.async_block_till_done(wait_background_tasks=True)
 
     assert "Sleeping device did not update" in caplog.text
     assert get_entity_state(hass, entity_id) == STATE_UNAVAILABLE
+
+
+async def test_rpc_sleeping_device_late_setup(
+    hass: HomeAssistant,
+    device_registry: dr.DeviceRegistry,
+    mock_rpc_device: Mock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test RPC sleeping device creates entities if they do not exist yet."""
+    entry = await init_integration(hass, 2, sleep_period=1000, skip_setup=True)
+    monkeypatch.setitem(mock_rpc_device.status["sys"], "wakeup_period", 1000)
+    assert entry.data[CONF_SLEEP_PERIOD] == 1000
+    register_device(device_registry, entry)
+    monkeypatch.setattr(mock_rpc_device, "connected", False)
+    monkeypatch.setattr(mock_rpc_device, "initialized", False)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    monkeypatch.setattr(mock_rpc_device, "initialized", True)
+    mock_rpc_device.mock_online()
+    await hass.async_block_till_done(wait_background_tasks=True)
+    monkeypatch.setattr(mock_rpc_device, "connected", True)
+    mock_rpc_device.mock_initialized()
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get("sensor.test_name_temperature") is not None
+
+
+async def test_rpc_already_connected(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    mock_rpc_device: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test RPC ignore connect event if already connected."""
+    await init_integration(hass, 2)
+
+    mock_rpc_device.mock_online()
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+    assert "already connected" in caplog.text
+    mock_rpc_device.initialize.assert_called_once()

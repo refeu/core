@@ -56,7 +56,6 @@ def mock_legacy_pydrawise(
 
 @pytest.fixture
 def mock_pydrawise(
-    mock_auth: AsyncMock,
     user: User,
     controller: Controller,
     zones: list[Zone],
@@ -187,6 +186,8 @@ def controller_water_use_summary() -> ControllerWaterUseSummary:
         total_active_use=332.6,
         total_inactive_use=13.0,
         active_use_by_zone_id={5965394: 120.1, 5965395: 0.0},
+        total_active_time=timedelta(seconds=123),
+        active_time_by_zone_id={5965394: timedelta(seconds=123), 5965395: timedelta()},
         unit="gal",
     )
 

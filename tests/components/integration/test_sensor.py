@@ -294,34 +294,22 @@ async def test_restore_state_failed(hass: HomeAssistant, extra_attributes) -> No
     assert state.state == STATE_UNKNOWN
 
 
+@pytest.mark.parametrize("force_update", [False, True])
 @pytest.mark.parametrize(
-    ("force_update", "sequence"),
+    "sequence",
     [
         (
-            False,
-            (
-                (20, 10, 1.67),
-                (30, 30, 5.0),
-                (40, 5, 7.92),
-                (50, 5, 7.92),
-                (60, 0, 8.75),
-            ),
-        ),
-        (
-            True,
-            (
-                (20, 10, 1.67),
-                (30, 30, 5.0),
-                (40, 5, 7.92),
-                (50, 5, 8.75),
-                (60, 0, 9.17),
-            ),
+            (20, 10, 1.67),
+            (30, 30, 5.0),
+            (40, 5, 7.92),
+            (50, 5, 8.75),
+            (60, 0, 9.17),
         ),
     ],
 )
 async def test_trapezoidal(
     hass: HomeAssistant,
-    sequence: tuple[tuple[float, float, float, ...]],
+    sequence: tuple[tuple[float, float, float], ...],
     force_update: bool,
 ) -> None:
     """Test integration sensor state."""
@@ -358,34 +346,22 @@ async def test_trapezoidal(
     assert state.attributes.get("unit_of_measurement") == UnitOfEnergy.KILO_WATT_HOUR
 
 
+@pytest.mark.parametrize("force_update", [False, True])
 @pytest.mark.parametrize(
-    ("force_update", "sequence"),
+    "sequence",
     [
         (
-            False,
-            (
-                (20, 10, 0.0),
-                (30, 30, 1.67),
-                (40, 5, 6.67),
-                (50, 5, 6.67),
-                (60, 0, 8.33),
-            ),
-        ),
-        (
-            True,
-            (
-                (20, 10, 0.0),
-                (30, 30, 1.67),
-                (40, 5, 6.67),
-                (50, 5, 7.5),
-                (60, 0, 8.33),
-            ),
+            (20, 10, 0.0),
+            (30, 30, 1.67),
+            (40, 5, 6.67),
+            (50, 5, 7.5),
+            (60, 0, 8.33),
         ),
     ],
 )
 async def test_left(
     hass: HomeAssistant,
-    sequence: tuple[tuple[float, float, float, ...]],
+    sequence: tuple[tuple[float, float, float], ...],
     force_update: bool,
 ) -> None:
     """Test integration sensor state with left reimann method."""
@@ -425,34 +401,22 @@ async def test_left(
     assert state.attributes.get("unit_of_measurement") == UnitOfEnergy.KILO_WATT_HOUR
 
 
+@pytest.mark.parametrize("force_update", [False, True])
 @pytest.mark.parametrize(
-    ("force_update", "sequence"),
+    "sequence",
     [
         (
-            False,
-            (
-                (20, 10, 3.33),
-                (30, 30, 8.33),
-                (40, 5, 9.17),
-                (50, 5, 9.17),
-                (60, 0, 9.17),
-            ),
-        ),
-        (
-            True,
-            (
-                (20, 10, 3.33),
-                (30, 30, 8.33),
-                (40, 5, 9.17),
-                (50, 5, 10.0),
-                (60, 0, 10.0),
-            ),
+            (20, 10, 3.33),
+            (30, 30, 8.33),
+            (40, 5, 9.17),
+            (50, 5, 10.0),
+            (60, 0, 10.0),
         ),
     ],
 )
 async def test_right(
     hass: HomeAssistant,
-    sequence: tuple[tuple[float, float, float, ...]],
+    sequence: tuple[tuple[float, float, float], ...],
     force_update: bool,
 ) -> None:
     """Test integration sensor state with left reimann method."""
@@ -877,6 +841,39 @@ async def test_on_valid_source_expect_update_on_time(
         assert condition.async_numeric_state(hass, state) is True
         assert float(state.state) > 1.69  # approximately 100 * 61 / 3600
         assert float(state.state) < 1.8
+
+
+async def test_on_0_source_expect_0_and_update_when_source_gets_positive(
+    hass: HomeAssistant,
+) -> None:
+    """Test whether time based integration updates the integral on a valid zero source."""
+    start_time = dt_util.utcnow()
+
+    with freeze_time(start_time) as freezer:
+        await _setup_integral_sensor(hass, max_sub_interval=DEFAULT_MAX_SUB_INTERVAL)
+        await _update_source_sensor(hass, 0)
+        await hass.async_block_till_done()
+
+        # wait one minute and one second
+        freezer.tick(61)
+        async_fire_time_changed(hass, dt_util.now())
+        await hass.async_block_till_done()
+
+        state = hass.states.get("sensor.integration")
+
+        assert condition.async_numeric_state(hass, state) is True
+        assert float(state.state) == 0  # integral is 0 after integration of 0
+
+        # wait one second and update state
+        freezer.tick(1)
+        async_fire_time_changed(hass, dt_util.now())
+        await _update_source_sensor(hass, 100)
+        await hass.async_block_till_done()
+
+        state = hass.states.get("sensor.integration")
+
+        # approx 100*1/3600 (right method after 1 second since last integration)
+        assert 0.027 < float(state.state) < 0.029
 
 
 async def test_on_unvailable_source_expect_no_update_on_time(

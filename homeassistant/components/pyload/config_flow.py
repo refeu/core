@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from typing import Any
 
@@ -23,8 +24,13 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
-from .const import DEFAULT_HOST, DEFAULT_NAME, DEFAULT_PORT, DOMAIN
+from .const import DEFAULT_NAME, DEFAULT_PORT, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +40,35 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
         vol.Required(CONF_SSL, default=False): cv.boolean,
         vol.Required(CONF_VERIFY_SSL, default=True): bool,
-        vol.Required(CONF_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_USERNAME): TextSelector(
+            TextSelectorConfig(
+                type=TextSelectorType.TEXT,
+                autocomplete="username",
+            ),
+        ),
+        vol.Required(CONF_PASSWORD): TextSelector(
+            TextSelectorConfig(
+                type=TextSelectorType.PASSWORD,
+                autocomplete="current-password",
+            ),
+        ),
+    }
+)
+
+REAUTH_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_USERNAME): TextSelector(
+            TextSelectorConfig(
+                type=TextSelectorType.TEXT,
+                autocomplete="username",
+            ),
+        ),
+        vol.Required(CONF_PASSWORD): TextSelector(
+            TextSelectorConfig(
+                type=TextSelectorType.PASSWORD,
+                autocomplete="current-password",
+            ),
+        ),
     }
 )
 
@@ -67,8 +100,6 @@ class PyLoadConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for pyLoad."""
 
     VERSION = 1
-    # store values from yaml import so we can use them as
-    # suggested values when the configuration step is resumed
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -89,7 +120,7 @@ class PyLoadConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                title = user_input.pop(CONF_NAME, DEFAULT_NAME)
+                title = DEFAULT_NAME
                 return self.async_create_entry(title=title, data=user_input)
 
         return self.async_show_form(
@@ -100,21 +131,77 @@ class PyLoadConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_import(self, import_info: dict[str, Any]) -> ConfigFlowResult:
-        """Import config from yaml."""
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Perform reauth upon an API authentication error."""
+        return await self.async_step_reauth_confirm()
 
-        config = {
-            CONF_NAME: import_info.get(CONF_NAME),
-            CONF_HOST: import_info.get(CONF_HOST, DEFAULT_HOST),
-            CONF_PASSWORD: import_info.get(CONF_PASSWORD, ""),
-            CONF_PORT: import_info.get(CONF_PORT, DEFAULT_PORT),
-            CONF_SSL: import_info.get(CONF_SSL, False),
-            CONF_USERNAME: import_info.get(CONF_USERNAME, ""),
-            CONF_VERIFY_SSL: False,
-        }
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Dialog that informs the user that reauth is required."""
+        errors = {}
+        reauth_entry = self._get_reauth_entry()
 
-        result = await self.async_step_user(config)
+        if user_input is not None:
+            new_input = reauth_entry.data | user_input
+            try:
+                await validate_input(self.hass, new_input)
+            except (CannotConnect, ParserError):
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                return self.async_update_reload_and_abort(reauth_entry, data=new_input)
 
-        if errors := result.get("errors"):
-            return self.async_abort(reason=errors["base"])
-        return result
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=self.add_suggested_values_to_schema(
+                REAUTH_SCHEMA,
+                {
+                    CONF_USERNAME: user_input[CONF_USERNAME]
+                    if user_input is not None
+                    else reauth_entry.data[CONF_USERNAME]
+                },
+            ),
+            description_placeholders={CONF_NAME: reauth_entry.data[CONF_USERNAME]},
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the reconfiguration flow."""
+        errors = {}
+        reconfig_entry = self._get_reconfigure_entry()
+
+        if user_input is not None:
+            try:
+                await validate_input(self.hass, user_input)
+            except (CannotConnect, ParserError):
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
+                return self.async_update_reload_and_abort(
+                    reconfig_entry,
+                    data=user_input,
+                    reload_even_if_entry_is_unchanged=False,
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_USER_DATA_SCHEMA,
+                user_input or reconfig_entry.data,
+            ),
+            description_placeholders={CONF_NAME: reconfig_entry.data[CONF_USERNAME]},
+            errors=errors,
+        )

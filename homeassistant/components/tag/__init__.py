@@ -18,7 +18,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.storage import Store
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers.typing import ConfigType, VolDictType
 from homeassistant.util import slugify
 import homeassistant.util.dt as dt_util
 from homeassistant.util.hass_dict import HassKey
@@ -35,7 +35,7 @@ STORAGE_VERSION_MINOR = 3
 
 TAG_DATA: HassKey[TagStorageCollection] = HassKey(DOMAIN)
 
-CREATE_FIELDS = {
+CREATE_FIELDS: VolDictType = {
     vol.Optional(TAG_ID): cv.string,
     vol.Optional(CONF_NAME): vol.All(str, vol.Length(min=1)),
     vol.Optional("description"): cv.string,
@@ -43,7 +43,7 @@ CREATE_FIELDS = {
     vol.Optional(DEVICE_ID): cv.string,
 }
 
-UPDATE_FIELDS = {
+UPDATE_FIELDS: VolDictType = {
     vol.Optional(CONF_NAME): vol.All(str, vol.Length(min=1)),
     vol.Optional("description"): cv.string,
     vol.Optional(LAST_SCANNED): cv.datetime,
@@ -84,7 +84,9 @@ def _create_entry(
         original_name=f"{DEFAULT_NAME} {tag_id}",
         suggested_object_id=slugify(name) if name else tag_id,
     )
-    return entity_registry.async_update_entity(entry.entity_id, name=name)
+    if name:
+        return entity_registry.async_update_entity(entry.entity_id, name=name)
+    return entry
 
 
 class TagStore(Store[collection.SerializedStorageCollection]):
@@ -104,7 +106,6 @@ class TagStore(Store[collection.SerializedStorageCollection]):
             for tag in data["items"]:
                 # Copy name in tag store to the entity registry
                 _create_entry(entity_registry, tag[CONF_ID], tag.get(CONF_NAME))
-                tag["migrated"] = True
         if old_major_version == 1 and old_minor_version < 3:
             # Version 1.3 removes tag_id from the store
             for tag in data["items"]:
@@ -176,10 +177,7 @@ class TagStorageCollection(collection.DictStorageCollection):
 
         We don't store the name, it's stored in the entity registry.
         """
-        # Preserve the name of migrated entries to allow downgrading to 2024.5
-        # without losing tag names. This can be removed in HA Core 2025.1.
-        migrated = item_id in self.data and "migrated" in self.data[item_id]
-        return {k: v for k, v in item.items() if k != CONF_NAME or migrated}
+        return {k: v for k, v in item.items() if k != CONF_NAME}
 
 
 class TagDictStorageCollectionWebsocket(
@@ -192,8 +190,8 @@ class TagDictStorageCollectionWebsocket(
         storage_collection: TagStorageCollection,
         api_prefix: str,
         model_name: str,
-        create_schema: ConfigType,
-        update_schema: ConfigType,
+        create_schema: VolDictType,
+        update_schema: VolDictType,
     ) -> None:
         """Initialize a websocket for tag."""
         super().__init__(
@@ -364,7 +362,6 @@ class TagEntity(Entity):
     """Representation of a Tag entity."""
 
     _unrecorded_attributes = frozenset({TAG_ID})
-    _attr_translation_key = DOMAIN
     _attr_should_poll = False
 
     def __init__(

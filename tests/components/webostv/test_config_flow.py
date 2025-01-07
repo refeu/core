@@ -218,22 +218,6 @@ async def test_ssdp_in_progress(hass: HomeAssistant, client) -> None:
     assert result2["reason"] == "already_in_progress"
 
 
-async def test_ssdp_update_uuid(hass: HomeAssistant, client) -> None:
-    """Test that ssdp updates existing host entry uuid."""
-    entry = await setup_webostv(hass, None)
-    assert client
-    assert entry.unique_id is None
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={CONF_SOURCE: SOURCE_SSDP}, data=MOCK_DISCOVERY_INFO
-    )
-    await hass.async_block_till_done()
-
-    assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
-    assert entry.unique_id == MOCK_DISCOVERY_INFO.upnp[ssdp.ATTR_UPNP_UDN][5:]
-
-
 async def test_ssdp_not_update_uuid(hass: HomeAssistant, client) -> None:
     """Test that ssdp not updates different host."""
     entry = await setup_webostv(hass, None)
@@ -295,16 +279,14 @@ async def test_form_abort_uuid_configured(hass: HomeAssistant, client) -> None:
     assert entry.data[CONF_HOST] == "new_host"
 
 
-async def test_reauth_successful(hass: HomeAssistant, client, monkeypatch) -> None:
+async def test_reauth_successful(
+    hass: HomeAssistant, client, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that the reauthorization is successful."""
     entry = await setup_webostv(hass)
     assert client
 
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
-        data=entry.data,
-    )
+    result = await entry.start_reauth_flow(hass)
     assert result["step_id"] == "reauth_confirm"
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"])
@@ -331,17 +313,13 @@ async def test_reauth_successful(hass: HomeAssistant, client, monkeypatch) -> No
     ],
 )
 async def test_reauth_errors(
-    hass: HomeAssistant, client, monkeypatch, side_effect, reason
+    hass: HomeAssistant, client, monkeypatch: pytest.MonkeyPatch, side_effect, reason
 ) -> None:
     """Test reauthorization errors."""
     entry = await setup_webostv(hass)
     assert client
 
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN,
-        context={"source": config_entries.SOURCE_REAUTH, "entry_id": entry.entry_id},
-        data=entry.data,
-    )
+    result = await entry.start_reauth_flow(hass)
     assert result["step_id"] == "reauth_confirm"
 
     result = await hass.config_entries.flow.async_configure(result["flow_id"])

@@ -1,15 +1,16 @@
 """Test fixtures for mqtt component."""
 
 import asyncio
+from collections.abc import AsyncGenerator, Generator
 from random import getrandbits
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from typing_extensions import AsyncGenerator, Generator
 
 from homeassistant.components import mqtt
-from homeassistant.components.mqtt.models import ReceiveMessage
+from homeassistant.components.mqtt.models import MessageCallbackType, ReceiveMessage
+from homeassistant.components.mqtt.util import EnsureJobAfterCooldown
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant, callback
 
@@ -50,6 +51,29 @@ def mock_temp_dir(temp_dir_prefix: str) -> Generator[str]:
 
 
 @pytest.fixture
+def mock_debouncer(hass: HomeAssistant) -> Generator[asyncio.Event]:
+    """Mock EnsureJobAfterCooldown.
+
+    Returns an asyncio.Event that allows to await the debouncer task to be finished.
+    """
+    task_done = asyncio.Event()
+
+    class MockDeboncer(EnsureJobAfterCooldown):
+        """Mock the MQTT client (un)subscribe debouncer."""
+
+        async def _async_job(self) -> None:
+            """Execute after a cooldown period."""
+            await super()._async_job()
+            task_done.set()
+
+    # We mock the import of EnsureJobAfterCooldown in client.py
+    with patch(
+        "homeassistant.components.mqtt.client.EnsureJobAfterCooldown", MockDeboncer
+    ):
+        yield task_done
+
+
+@pytest.fixture
 async def setup_with_birth_msg_client_mock(
     hass: HomeAssistant,
     mqtt_config_entry_data: dict[str, Any] | None,
@@ -63,7 +87,8 @@ async def setup_with_birth_msg_client_mock(
         patch("homeassistant.components.mqtt.client.SUBSCRIBE_COOLDOWN", 0.0),
     ):
         entry = MockConfigEntry(
-            domain=mqtt.DOMAIN, data={mqtt.CONF_BROKER: "test-broker"}
+            domain=mqtt.DOMAIN,
+            data=mqtt_config_entry_data or {mqtt.CONF_BROKER: "test-broker"},
         )
         entry.add_to_hass(hass)
         hass.config.components.add(mqtt.DOMAIN)
@@ -79,3 +104,28 @@ async def setup_with_birth_msg_client_mock(
         await hass.async_block_till_done()
         await birth.wait()
         yield mqtt_client_mock
+
+
+@pytest.fixture
+def recorded_calls() -> list[ReceiveMessage]:
+    """Fixture to hold recorded calls."""
+    return []
+
+
+@pytest.fixture
+def record_calls(recorded_calls: list[ReceiveMessage]) -> MessageCallbackType:
+    """Fixture to record calls."""
+
+    @callback
+    def record_calls(msg: ReceiveMessage) -> None:
+        """Record calls."""
+        recorded_calls.append(msg)
+
+    return record_calls
+
+
+@pytest.fixture
+def tag_mock() -> Generator[AsyncMock]:
+    """Fixture to mock tag."""
+    with patch("homeassistant.components.tag.async_scan_tag") as mock_tag:
+        yield mock_tag
