@@ -105,7 +105,7 @@ class SmartIfClimateEntityInfo(SmartIfEntityInfo):
 
     """
 
-    supports_state: str = Field(..., alias="supportsState")
+    supports_state: bool = Field(..., alias="supportsState")
 
 
 class SmartIfClimateState(BaseModel):

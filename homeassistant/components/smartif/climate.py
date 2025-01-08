@@ -1,4 +1,5 @@
 """Support for SmartIf climates."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -67,7 +68,9 @@ class SmartIfClimate(
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
         self._attr_fan_modes = [FAN_AUTO, FAN_LOW, FAN_MEDIUM, FAN_HIGH]
         self._attr_supported_features = (
-            ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.FAN_MODE
+            ClimateEntityFeature.TARGET_TEMPERATURE
+            | ClimateEntityFeature.FAN_MODE
+            | ClimateEntityFeature.TURN_OFF
         )
 
         if not climate_entity_info.supports_state:
@@ -168,3 +171,7 @@ class SmartIfClimate(
             )
         except SmartIfError:
             LOGGER.error("An error occurred while updating the SmartIf Climate")
+
+    async def async_turn_off(self) -> None:
+        """Turn the entity off."""
+        await self.async_set_hvac_mode(HVACMode.OFF)
